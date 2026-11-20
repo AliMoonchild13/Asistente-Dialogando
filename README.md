@@ -3,12 +3,10 @@
 Oficina Dialogando con el Mundo – Universidad de Cundinamarca.  
 Sistema de información con base de datos PostgreSQL, Power BI y un agente de IA con RAG para consultar las cifras de movilidad y los informes finales de los participantes.
 
-## Versión v1.0: Prototipo inicial: base de datos y RAG con Streamlit
+## Versión v1.1: Agente de IA que elige la herramienta
 
-- Esquema relacional en PostgreSQL (01_esquema.sql) y vista v_movilidad.
-- Depuración y carga del Excel de movilidad (02_cargar_excel.py).
-- Esquema RAG con pgvector (03_esquema_rag.sql), lectura de informes por secciones (extraer.py) e ingesta con embeddings (ingesta.py).
-- Interfaz en Streamlit con dos pestañas: cifras e informes (app.py).
+- Agente con ciclo de razonamiento y herramientas: consultar la base y buscar en los informes (agente.py).
+- Interfaz Streamlit del agente (app_agente.py).
 
 ## Datos y claves
 
