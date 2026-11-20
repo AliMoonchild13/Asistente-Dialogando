@@ -1,0 +1,7 @@
+pandas
+openpyxl
+psycopg2-binary
+pymupdf
+sentence-transformers
+openai
+streamlit

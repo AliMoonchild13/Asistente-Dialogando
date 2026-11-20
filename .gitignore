@@ -1,0 +1,23 @@
+# Claves y configuración local
+.env
+
+# Datos con información personal y archivos generados (NO subir)
+datos/excel/*
+datos/informes/*
+datos/salida/*
+datos/respaldos/*
+datos/powerbi/*
+!datos/*/*.txt
+informes/*
+!informes/*.txt
+certs/*
+!certs/LEEME.txt
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.dump
+*.tar
+
+__pycache__/
+*.pyc
