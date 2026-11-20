@@ -122,7 +122,7 @@ Valores exactos disponibles:
 Reglas:
 - Usa solo la vista movilidad.v_movilidad. Solo SELECT (o WITH ... SELECT). Nada de INSERT, UPDATE, DELETE, etc.
 - Para textos usa los valores exactos de la lista. Para universidades usa ILIKE '%...%'.
-- Cada fila es una movilidad; para contar personas usa COUNT(DISTINCT nombres_apellidos).
+- Cada fila es una movilidad: para contar movilidades usa COUNT(*). Usa COUNT(DISTINCT nombres_apellidos) solo si la pregunta pide explícitamente contar personas.
 - Pon alias claros en español a las columnas calculadas (por ejemplo AS total).
 - Responde SOLO con el SQL, sin explicaciones ni ```."""
 

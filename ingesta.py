@@ -3,7 +3,7 @@ Lee los informes PDF de la carpeta (sincronizada desde SharePoint), los fragment
 calcula los embeddings y los guarda en PostgreSQL.
 
 Uso:
-    python ingesta.py                    # usa CARPETA_INFORMES de config.py
+    python ingesta.py                    # usa CARPETA_INFORMES del archivo .env
     python ingesta.py "D:\\ruta\\informes" # o una carpeta específica
 
 Se puede ejecutar las veces que quiera: solo procesa informes nuevos o modificados

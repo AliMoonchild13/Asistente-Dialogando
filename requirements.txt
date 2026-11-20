@@ -4,4 +4,5 @@ psycopg2-binary
 pymupdf
 sentence-transformers
 openai
-streamlit
+fastapi
+uvicorn

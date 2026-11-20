@@ -3,9 +3,10 @@
 Oficina Dialogando con el Mundo – Universidad de Cundinamarca.  
 Sistema de información con base de datos PostgreSQL, Power BI y un agente de IA con RAG para consultar las cifras de movilidad y los informes finales de los participantes.
 
-## Versión v2.0: Interfaz web institucional con FastAPI
+## Versión v2.1: Paquete instalable para Windows
 
-- API con FastAPI (api.py) y página web propia (web/): historial, tablas, citas, exportación a Excel y opiniones.
+- Instalación con archivos .bat y PostgreSQL en Docker.
+- Configuración en archivo .env (sin claves en el código).
 
 ## Datos y claves
 

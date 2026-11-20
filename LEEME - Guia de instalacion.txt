@@ -1,0 +1,136 @@
+﻿ASISTENTE DE MOVILIDAD INTERNACIONAL
+Oficina Dialogando con el Mundo - Universidad de Cundinamarca
+Guia de instalacion y uso
+======================================================================
+
+
+A. LO QUE DEBE INSTALAR LA OFICINA DE SISTEMAS (una sola vez)
+----------------------------------------------------------------------
+Equipo: Windows 10 u 11 de 64 bits, con 8 GB de RAM o mas (recomendado 16)
+y unos 8 GB libres en disco.
+
+1. Docker Desktop  (https://www.docker.com/products/docker-desktop)
+   - Requiere WSL 2 y la virtualizacion activada en el equipo.
+   - Despues de instalarlo: Settings > General > marcar
+     "Start Docker Desktop when you sign in to your computer".
+   - Sistemas debe confirmar que la licencia de Docker Desktop aplica
+     para el uso de la Universidad.
+
+2. Python 3.11 o superior  (https://www.python.org/downloads)
+   - En el instalador, marcar "Add python.exe to PATH".
+
+3. Acceso a internet desde el equipo hacia:
+   - pypi.org y files.pythonhosted.org   (librerias, solo al instalar)
+   - hub.docker.com / docker.io          (base de datos, solo al instalar)
+   - huggingface.co                      (modelo de 1 GB, solo al instalar)
+   - api.groq.com                        (servicio de IA, siempre)
+
+El usuario que va a usar el asistente debe poder ejecutar Docker Desktop
+sin permisos de administrador (grupo "docker-users" de Windows).
+
+
+B. INSTALACION (una sola vez, unos 20 a 40 minutos)
+----------------------------------------------------------------------
+1. Copia la carpeta "asistente_movilidad" completa al equipo, por ejemplo
+   en  C:\asistente_movilidad
+   (evita rutas con tildes o dentro de OneDrive).
+
+2. Copia dentro de esa carpeta el Excel de movilidad:
+   BD_UNION_MOVILIDAD_LIMPIA_con_fechas.xlsx
+
+3. Copia los informes en PDF dentro de la carpeta "informes".
+   Los nombres deben seguir este formato:
+       EMBAJADOR 2025-1 SALIENTE NOMBRE APELLIDO.pdf
+   (programa, periodo, SALIENTE o ENTRANTE, nombre de la persona).
+   Si los informes estan en SharePoint, sincroniza esa biblioteca con
+   OneDrive y escribe la ruta en CARPETA_INFORMES dentro del archivo .env
+
+4. Abre el archivo ".env" con el Bloc de notas y completa:
+   - POSTGRES_PASSWORD : una clave para la base de datos
+                         (solo letras y numeros, sin espacios ni simbolos).
+   - LLM_API_KEY       : la clave del servicio de IA.
+   Guarda y cierra.
+   Si no ves el archivo .env: en el Explorador, menu Ver > Mostrar >
+   "Elementos ocultos" y "Extensiones de nombre de archivo".
+
+5. Haz doble clic en "Instalar.bat" y espera a que diga
+   "Instalacion terminada". No cierres la ventana mientras trabaja.
+   Al final debe mostrar algo como:
+       OK: 1076 movilidades y 990 personas cargadas.
+       Informes en la base: 89 (...)
+
+
+C. USO DIARIO
+----------------------------------------------------------------------
+1. Doble clic en "Iniciar asistente.bat".
+2. Se abre el navegador en http://localhost:8000
+3. Mientras se usa el asistente, la ventana negra debe quedar abierta
+   (se puede minimizar). Para apagarlo, se cierra esa ventana.
+
+La primera pregunta despues de abrirlo puede tardar hasta un minuto.
+
+Sugerencia: crear un acceso directo de "Iniciar asistente.bat" en el
+Escritorio (clic derecho > Enviar a > Escritorio).
+
+
+D. ACTUALIZAR LA INFORMACION
+----------------------------------------------------------------------
+Hay informes nuevos o corregidos:
+   1. Copia o reemplaza los PDF en la carpeta de informes.
+   2. Doble clic en "Actualizar informes.bat".
+   Solo procesa los nuevos o modificados. Si se quita un PDF de la
+   carpeta, tambien se quita del asistente.
+
+Se corrigio o actualizo el Excel de movilidad:
+   1. Reemplaza el Excel en la carpeta (con el mismo nombre).
+   2. Doble clic en "Recargar datos.bat" y confirma con S.
+   Esto vuelve a cargar el Excel y todos los informes (tarda mas).
+   Revisa despues el archivo "reporte_limpieza.xlsx" que se genera.
+
+Cambio la clave del servicio de IA:
+   Edita LLM_API_KEY en el archivo .env y vuelve a iniciar el asistente.
+
+
+E. PROBLEMAS FRECUENTES
+----------------------------------------------------------------------
+"No se encuentra Python" o "No se encuentra Docker Desktop"
+   Falta instalarlo (seccion A) o reiniciar el equipo despues de instalar.
+
+"Docker Desktop no respondio"
+   Abre Docker Desktop desde el menu Inicio, espera a que abajo diga
+   "Engine running" y vuelve a ejecutar el archivo.
+
+La pagina dice "Se alcanzo el limite de uso"
+   Es el limite del servicio de IA. Espera el tiempo que indica y
+   vuelve a intentar. Con la clave gratuita son unas 30 a 50 preguntas
+   al dia.
+
+La pagina dice "No pude obtener una respuesta"
+   Revisa la conexion a internet y que la ventana negra siga abierta.
+   Si continua, cierra la ventana y vuelve a "Iniciar asistente.bat".
+
+Un informe no aparece en las respuestas
+   Debe ser un PDF con texto (no una foto o escaneo). Al ejecutar
+   "Actualizar informes.bat" se indica si algun archivo no se pudo leer.
+
+"El puerto 8000 esta en uso"
+   El asistente ya estaba abierto en otra ventana. Usa esa.
+
+
+F. DATOS Y PRIVACIDAD
+----------------------------------------------------------------------
+- La base de datos y los informes quedan guardados en este equipo.
+- Al servicio de IA solo se envian fragmentos de los informes (sin
+  correos ni telefonos) y cifras agregadas. No se envian nombres ni
+  numeros de documento.
+- Las conversaciones se guardan en el navegador de este equipo. En un
+  equipo compartido, usar "Borrar historial" al terminar.
+- El archivo .env contiene claves: no compartirlo ni enviarlo por correo.
+- Las valoraciones (pulgares) se guardan en el archivo opiniones.csv
+
+
+G. DESINSTALAR
+----------------------------------------------------------------------
+1. Abre una terminal en la carpeta y ejecuta:  docker compose down -v
+   (borra la base de datos del asistente).
+2. Borra la carpeta "asistente_movilidad".

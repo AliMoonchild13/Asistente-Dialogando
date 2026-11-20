@@ -6,7 +6,7 @@ Requisitos:
 
 Uso:
     1) Crear la base y el esquema:  psql -U postgres -d movilidad_udec -f 01_esquema.sql
-    2) Ajustar CONEXION (abajo) o usar variables de entorno PGHOST, PGUSER, etc.
+    2) Revisar el archivo .env (usuario, contraseña y puerto de la base).
     3) python 02_cargar_excel.py "BD - UNIÓN MOVILIDAD GENERAL.xlsx"
 
 Genera también "reporte_limpieza.xlsx" con lo que se corrigió, para revisarlo con la oficina.
@@ -21,13 +21,9 @@ import psycopg2
 
 HOJA = "BD - UNIÓN GENERAL MOVILIDAD"
 
-CONEXION = dict(
-    host=os.getenv("PGHOST", "localhost"),
-    port=int(os.getenv("PGPORT", "5432")),
-    dbname=os.getenv("PGDATABASE", "movilidad_udec"),
-    user=os.getenv("PGUSER", "postgres"),
-    password=os.getenv("PGPASSWORD", "postgres"),
-)
+import config
+
+CONEXION = config.PG          # la conexión se configura en el archivo .env
 
 COLUMNAS = {
     "PERIODO": "periodo",
@@ -95,7 +91,9 @@ def documento(valor):
 
 
 def limpiar(ruta):
-    df = pd.read_excel(ruta, sheet_name=HOJA, dtype=object)
+    hojas = pd.ExcelFile(ruta).sheet_names
+    hoja = HOJA if HOJA in hojas else hojas[0]      # si la hoja se renombró, usa la primera
+    df = pd.read_excel(ruta, sheet_name=hoja, dtype=object)
     df = df[list(COLUMNAS)].rename(columns=COLUMNAS)       # descarta columnas sobrantes
     df["fila_excel"] = df.index + 2                         # +2: encabezado y base 1
     df = df.dropna(how="all", subset=list(COLUMNAS.values()))
@@ -198,7 +196,7 @@ def cargar(df):
 
 
 if __name__ == "__main__":
-    ruta = sys.argv[1] if len(sys.argv) > 1 else "BD - UNIÓN MOVILIDAD GENERAL.xlsx"
+    ruta = sys.argv[1] if len(sys.argv) > 1 else config.ARCHIVO_EXCEL
     df, cambios = limpiar(ruta)
 
     with pd.ExcelWriter("reporte_limpieza.xlsx") as w:

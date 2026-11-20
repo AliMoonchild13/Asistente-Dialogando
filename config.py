@@ -1,35 +1,60 @@
-"""Configuración del sistema RAG. Cambia los valores aquí o con variables de entorno."""
-import os
+"""
+Configuración del Asistente de Movilidad Internacional.
 
-# --- PostgreSQL (usuario principal: ingesta y búsqueda de informes) ---
+NO edites este archivo: todos los valores se cambian en el archivo ".env"
+que está en esta misma carpeta (contraseña de la base, clave de IA, carpeta de informes).
+"""
+import os
+from pathlib import Path
+
+RAIZ = Path(__file__).parent
+
+
+def _leer_env():
+    datos = {}
+    archivo = RAIZ / ".env"
+    if archivo.exists():
+        for linea in archivo.read_text(encoding="utf-8-sig").splitlines():
+            linea = linea.strip()
+            if linea and not linea.startswith("#") and "=" in linea:
+                clave, valor = linea.split("=", 1)
+                datos[clave.strip()] = valor.strip().strip('"')
+    return datos
+
+
+_ENV = _leer_env()
+
+
+def _valor(nombre, defecto=""):
+    """Primero el archivo .env; si no está ahí, la variable de entorno; si no, el valor por defecto."""
+    return _ENV.get(nombre) or os.getenv(nombre) or defecto
+
+
+# --- PostgreSQL (los mismos valores que usa Docker al crear la base) ---
 PG = dict(
-    host=os.getenv("PGHOST", "localhost"),
-    port=int(os.getenv("PGPORT", "5432")),
-    dbname=os.getenv("PGDATABASE", "movilidad_udec"),
-    user=os.getenv("PGUSER", "postgres"),
-    password=os.getenv("PGPASSWORD", "postgres"),
+    host="localhost",
+    port=int(_valor("POSTGRES_PORT", "5433")),
+    dbname=_valor("POSTGRES_DB", "movilidad_udec"),
+    user=_valor("POSTGRES_USER", "postgres"),
+    password=_valor("POSTGRES_PASSWORD"),
 )
 
-# --- Usuario de solo lectura para las preguntas sobre la base de movilidad ---
-PG_LECTOR = dict(PG, user=os.getenv("PG_LECTOR_USER", "rag_lector"),
-                 password=os.getenv("PG_LECTOR_PASSWORD", "cambiar_esta_clave"))
+# --- Usuario de solo lectura con el que el asistente consulta la base de movilidad ---
+PG_LECTOR = dict(PG, user="rag_lector", password=_valor("PG_LECTOR_PASSWORD", "cambiar_esta_clave"))
 
-# --- Carpeta de informes (la carpeta de SharePoint sincronizada con OneDrive) ---
-CARPETA_INFORMES = os.getenv("CARPETA_INFORMES", r"C:\Users\TU_USUARIO\Universidad de Cundinamarca\Informes")
+# --- Archivos de datos ---
+ARCHIVO_EXCEL = _valor("ARCHIVO_EXCEL", "BD_UNION_MOVILIDAD_LIMPIA_con_fechas.xlsx")
+CARPETA_INFORMES = _valor("CARPETA_INFORMES") or str(RAIZ / "informes")
 
-# --- Embeddings (se ejecutan en tu equipo; el texto de los informes no sale) ---
-MODELO_EMBEDDINGS = os.getenv("MODELO_EMBEDDINGS", "intfloat/multilingual-e5-base")
+# --- Embeddings (se calculan en este equipo; el texto de los informes no sale) ---
+MODELO_EMBEDDINGS = _valor("MODELO_EMBEDDINGS", "intfloat/multilingual-e5-base")
 DIMENSION_EMBEDDINGS = 768      # debe coincidir con vector(768) en 03_esquema_rag.sql
 
-# --- LLM: "groq" (gratis, en la nube) u "ollama" (local) ---
-PROVEEDOR_LLM = os.getenv("PROVEEDOR_LLM", "groq")
-LLM = {
-    "groq": dict(base_url="https://api.groq.com/openai/v1",
-                 api_key=os.getenv("GROQ_API_KEY", "PEGA_AQUI_TU_API_KEY"),
-                 modelo="llama-3.3-70b-versatile"),
-    "ollama": dict(base_url="http://localhost:11434/v1",
-                   api_key="ollama",
-                   modelo=os.getenv("OLLAMA_MODELO", "llama3.1:8b")),
-}[PROVEEDOR_LLM]
+# --- Modelo de lenguaje (cualquier servicio compatible con el formato de OpenAI) ---
+LLM = dict(
+    base_url=_valor("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
+    api_key=_valor("LLM_API_KEY") or _valor("GROQ_API_KEY", "FALTA_LA_CLAVE"),
+    modelo=_valor("LLM_MODELO", "openai/gpt-oss-120b"),
+)
 
 FRAGMENTOS_POR_PREGUNTA = 6
