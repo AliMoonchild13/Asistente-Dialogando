@@ -9,6 +9,7 @@ y lo devuelve separado por campo: "Impacto Social", "Fortalezas", "Observaciones
 """
 import re
 import unicodedata
+from collections import Counter
 
 import pymupdf
 
@@ -16,10 +17,10 @@ MARGEN_SUP = 112      # encabezado institucional (pt)
 MARGEN_INF = 692      # pie de página (dirección, NIT, SGC)
 LARGO_VALOR = 60      # una celda con más caracteres se considera respuesta, no etiqueta
 
-INICIO_FIRMAS = re.compile(r"^(Firma:|Nombres y apellidos de quien presenta)", re.I)
+INICIO_FIRMAS = re.compile(r"(?:^|\s)(Firma:|Nombres y apellidos de quien presenta)", re.I)
 SECCION = re.compile(r"^\s*\d+\s*\.\s*-")
 CORREO = re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+")
-TELEFONO = re.compile(r"\+?\d[\d\s()-]{7,}\d")
+TELEFONO = re.compile(r"(?<![\d/])\+?\d[\d ()-]{6,}\d(?![\d/])")   # no toma fechas como 2023/12/15
 
 PROGRAMAS = {
     "EMBAJADOR": "Estudiante Embajador",   # "DOCENTE" se revisa primero
@@ -30,7 +31,8 @@ PROGRAMAS = {
 
 def limpiar(texto):
     texto = CORREO.sub("[correo]", texto)
-    texto = TELEFONO.sub("[teléfono]", texto)
+    texto = TELEFONO.sub(lambda m: m.group() if sum(c.isdigit() for c in m.group()) < 7
+                         or re.fullmatch(r"\d{4}-\d\d-\d\d", m.group()) else "[teléfono]", texto)
     return re.sub(r"\s+", " ", texto).strip()
 
 
@@ -63,28 +65,60 @@ def datos_del_nombre(nombre_archivo):
     return datos
 
 
+def _separador(pagina, cuerpo):
+    """Busca la línea vertical que separa, en las tablas del formato, la columna de etiquetas
+    de la columna de respuestas. Devuelve su posición x y los tramos (y0, y1) donde aparece."""
+    ancho, segmentos = pagina.rect.width, []
+    for dibujo in pagina.get_drawings():
+        for item in dibujo["items"]:
+            if item[0] == "l":
+                x0, x1, y0, y1 = item[1].x, item[2].x, min(item[1].y, item[2].y), max(item[1].y, item[2].y)
+            elif item[0] == "re":
+                x0, x1, y0, y1 = item[1].x0, item[1].x1, item[1].y0, item[1].y1
+            else:
+                continue
+            if abs(x1 - x0) < 2 and y1 - y0 > 5 and 0.42 * ancho <= x0 <= 0.53 * ancho \
+                    and y1 > cuerpo.y0 and y0 < cuerpo.y1:
+                segmentos.append((round(x0), max(y0, cuerpo.y0), min(y1, cuerpo.y1)))
+    if not segmentos:
+        return None, []
+    x = Counter(s[0] for s in segmentos).most_common(1)[0][0]
+    return x, sorted((y0, y1) for sx, y0, y1 in segmentos if abs(sx - x) <= 2)
+
+
+def _unir(palabras):
+    return " ".join(p[4] for p in sorted(palabras, key=lambda p: (round(p[1]), p[0])))
+
+
 def _elementos_pagina(pagina):
     """Devuelve el texto del cuerpo de la página en orden de lectura:
-    lista de (y, tipo, texto) con tipo 'L' (etiqueta) o 'V' (respuesta)."""
+    lista de (y, tipo, texto) con tipo 'L' (etiqueta), 'V' (respuesta) o 'S' (sección)."""
     cuerpo = pymupdf.Rect(0, MARGEN_SUP, pagina.rect.width, MARGEN_INF)
-    elementos, zonas_tabla = [], []
+    elementos = []
+    x_sep, tramos = _separador(pagina, cuerpo)
+    en_tramo = lambda y: next((t for t in tramos if t[0] <= y < t[1]), None)
 
-    for tabla in pagina.find_tables(clip=cuerpo).tables:
-        zonas_tabla.append(pymupdf.Rect(tabla.bbox))
-        for fila, celdas in zip(tabla.rows, tabla.extract()):
-            y = fila.bbox[1]
-            for celda in celdas:
-                t = limpiar(celda or "")
-                if not t or t == "X":
-                    continue
-                elementos.append((y, "V" if len(t) > LARGO_VALOR else "L", t))
+    # Zona de tabla: en cada tramo, lo de la izquierda es etiqueta y lo de la derecha respuesta.
+    # Se arma palabra por palabra para conservar los espacios.
+    por_tramo = {}
+    for p in pagina.get_text("words", clip=cuerpo):
+        tramo = en_tramo((p[1] + p[3]) / 2)
+        if tramo:
+            por_tramo.setdefault(tramo, []).append(p)
+    for (y0, _), palabras in por_tramo.items():
+        for tipo, lado, dy in (("L", [p for p in palabras if p[0] < x_sep], 0),
+                               ("V", [p for p in palabras if p[0] >= x_sep], 0.1)):
+            t = limpiar(_unir(lado))
+            if t and t.upper() != "X":
+                elementos.append((y0 + dy, tipo, t))
 
-    # Texto fuera de tablas (títulos de sección, "Observaciones", etc.)
-    for x0, y0, x1, y1, t, *_ in pagina.get_text("blocks", clip=cuerpo):
-        caja = pymupdf.Rect(x0, y0, x1, y1)
-        if any(z.intersects(caja) and (z & caja).get_area() > 0.5 * caja.get_area() for z in zonas_tabla):
+    # Texto fuera de las tablas (títulos de sección, "Observaciones", párrafos de ancho completo)
+    for bloque in pagina.get_text("dict", clip=cuerpo)["blocks"]:
+        lineas = [l for l in bloque.get("lines", []) if not en_tramo((l["bbox"][1] + l["bbox"][3]) / 2)]
+        if not lineas:
             continue
-        t = limpiar(t)
+        y0 = lineas[0]["bbox"][1]
+        t = limpiar("\n".join("".join(s["text"] for s in l["spans"]) for l in lineas))
         if not t:
             continue
         if SECCION.match(t):                         # "5.- Anexos: ..." inicia un campo nuevo
@@ -107,16 +141,25 @@ def extraer_campos(ruta_pdf):
     for pagina in doc:
         elementos.extend((tipo, t) for _, tipo, t in _elementos_pagina(pagina))
 
-    # Cortar en la zona de firmas
-    for i, (_, t) in enumerate(elementos):
-        if INICIO_FIRMAS.match(t):
-            elementos = elementos[:i]
+    # Cortar en la zona de firmas (aunque esté pegada al final de otro texto)
+    for i, (tipo, t) in enumerate(elementos):
+        m = INICIO_FIRMAS.search(t)
+        if m:
+            antes = t[:m.start()].strip()
+            elementos = elementos[:i] + ([(tipo, antes)] if antes else [])
             break
 
     campos, etiquetas = [], []
-    datos_generales = []          # todo lo que va antes de la primera respuesta larga
+    datos_generales = []          # secciones 1 a 3: casillas y datos cortos
+    # En el formato MDMr015 las respuestas narrativas empiezan en "Impacto Social"
+    inicio_narrativa = next((i for i, (_, t) in enumerate(elementos) if "impacto social" in t.lower()), None)
+    if inicio_narrativa is not None:
+        tipo, t = elementos[inicio_narrativa]
+        pos = t.lower().find("impacto social")
+        datos_generales = [x for _, x in elementos[:inicio_narrativa]] + ([t[:pos]] if pos else [])
+        elementos = [(tipo, t[pos:])] + elementos[inicio_narrativa + 1:]
     for tipo, t in elementos:
-        if not campos and (tipo != "V" or len(t) < 150):   # secciones 1 a 3 (casillas y datos cortos)
+        if inicio_narrativa is None and not campos and (tipo != "V" or len(t) < 150):
             etiquetas.append(t)
             continue
         if tipo == "S":
@@ -130,8 +173,9 @@ def extraer_campos(ruta_pdf):
             # lo anterior es la cola de la etiqueta del campo previo (celdas partidas en filas).
             inicio = max((i for i, e in enumerate(etiquetas) if e[:1].isupper() and not SECCION.match(e)),
                          default=None)
-            if inicio is None and campos:                # continuación en la página siguiente
+            if inicio is None and campos:                # continuación del mismo campo
                 campos[-1]["texto"] += " " + t
+                campos[-1]["campo"] += " " + " ".join(etiquetas)   # cola de la etiqueta (línea siguiente)
             else:
                 previas = etiquetas[:inicio] if inicio is not None else []
                 if campos:
@@ -151,18 +195,18 @@ def extraer_campos(ruta_pdf):
     # De las secciones 1 a 3 solo se guardan unos datos clave (el resto son casillas y nombres)
     previo = " | ".join(datos_generales)
     patrones = {
-        "Universidad": r"desarrolla la actividad: \|(?: Universidad con la que se desarrolla la actividad: \|)? ([^|]+)",
-        "País": r"\bPaís \| ([^|]+)",
+        "Universidad": r"desarrolla la actividad: \| ([^|]+)",
+        "País": r"País (?:[xX] )?([^|]+?) Denominación",
         "Fecha de realización": r"Fecha de realización del evento \| ([^|]+)",
-        "Campo de aprendizaje": r"Campo de \| ([^|]+)",
-        "Total de participantes": r"Total, de participantes: \| ([^|]+)",
-        "Duración": r"trabajo \| ([^|]+)",
+        "Campo de aprendizaje": r"Núcleo temático: \| ([^|]+)",
+        "Duración": r"\| (\d+ \w+) No\. Total, de hora",
+        "Total de participantes": r"Total, de participantes: (\d+)",
     }
     resumen = []
     for nombre, patron in patrones.items():
         m = re.search(patron, previo)
         if m:
-            resumen.append(f"{nombre}: {m.group(1).strip()}")
+            resumen.append(f"{nombre}: {re.sub(r'^[xX] ', '', m.group(1).strip())}")
     if resumen:
         campos.insert(0, {"campo": "Datos generales", "texto": ". ".join(resumen) + "."})
 
@@ -187,6 +231,9 @@ def dividir(texto, max_chars=1500, solape=200):
         if fin >= len(texto):
             break
         inicio = max(fin - solape, inicio + 1)
+        espacio = texto.find(" ", inicio, fin)          # que el trozo no empiece a mitad de palabra
+        if espacio != -1:
+            inicio = espacio + 1
     return trozos
 
 

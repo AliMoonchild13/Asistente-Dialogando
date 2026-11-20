@@ -42,8 +42,10 @@ PG = dict(
 # --- Usuario de solo lectura con el que el asistente consulta la base de movilidad ---
 PG_LECTOR = dict(PG, user="rag_lector", password=_valor("PG_LECTOR_PASSWORD", "cambiar_esta_clave"))
 
-# --- Archivos de datos ---
+# --- Archivos de datos (se aceptan rutas completas, por ejemplo una carpeta de OneDrive) ---
 ARCHIVO_EXCEL = _valor("ARCHIVO_EXCEL", "BD_UNION_MOVILIDAD_LIMPIA_con_fechas.xlsx")
+if not os.path.isabs(ARCHIVO_EXCEL):
+    ARCHIVO_EXCEL = str(RAIZ / ARCHIVO_EXCEL)
 CARPETA_INFORMES = _valor("CARPETA_INFORMES") or str(RAIZ / "informes")
 
 # --- Embeddings (se calculan en este equipo; el texto de los informes no sale) ---

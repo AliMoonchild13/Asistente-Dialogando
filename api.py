@@ -6,6 +6,7 @@ Ejecutar:   python api.py
 Se abre en: http://localhost:8000
 """
 import csv
+from typing import Literal
 import io
 import json
 import re
@@ -19,7 +20,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import agente
 import consultas
@@ -33,7 +34,7 @@ app = FastAPI(title="Asistente de Movilidad Internacional", docs_url=None, redoc
 
 
 class Pregunta(BaseModel):
-    pregunta: str
+    pregunta: str = Field(max_length=1000)
     historial: list[list[str]] = []        # [[pregunta, respuesta], ...] de la conversación actual
 
 
@@ -45,7 +46,12 @@ class Tabla(BaseModel):
 class Opinion(BaseModel):
     pregunta: str
     respuesta: str
-    valor: str                             # "util" o "no_util"
+    valor: Literal["util", "no_util"]
+
+
+def _texto_seguro(v):
+    """Evita que Excel interprete como fórmula un texto que empieza por = + - @ (inyección de fórmulas)."""
+    return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@") else v
 
 
 def _tabla_a_json(df: pd.DataFrame):
@@ -66,6 +72,8 @@ def _pasos_legibles(resultado):
             filtros = [f"{k.replace('_', ' ')}: {v}" for k, v in d.items() if k != "consulta"]
             detalle = "Buscó los fragmentos más relacionados" + (
                 f" (filtros: {', '.join(filtros)})." if filtros else " en todos los informes disponibles.")
+        elif p["accion"].startswith("Consultó el listado"):
+            detalle = "Revisó qué informes finales están cargados en el sistema."
         else:
             detalle = "Consultó los registros de movilidad internacional para obtener las cifras."
         titulo = p["accion"] + (f": {d['consulta']}" if "consulta" in d else "")
@@ -106,8 +114,12 @@ def preguntar(p: Pregunta):
 
 @app.post("/api/exportar")
 def exportar(t: Tabla):
+    if any(len(f) != len(t.columnas) for f in t.filas):
+        return JSONResponse({"error": "tabla_invalida"}, status_code=400)
     salida = io.BytesIO()
-    pd.DataFrame(t.filas, columns=t.columnas).to_excel(salida, index=False, sheet_name="Resultados")
+    filas = [[_texto_seguro(v) for v in f] for f in t.filas]
+    pd.DataFrame(filas, columns=[_texto_seguro(c) for c in t.columnas]).to_excel(
+        salida, index=False, sheet_name="Resultados")
     nombre = f"movilidad_{datetime.now():%Y%m%d_%H%M}.xlsx"
     return Response(salida.getvalue(),
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -122,7 +134,7 @@ def opinion(o: Opinion):
         w = csv.writer(f, delimiter=";")
         if nuevo:
             w.writerow(["fecha", "valoracion", "pregunta", "respuesta"])
-        w.writerow([f"{datetime.now():%Y-%m-%d %H:%M}", o.valor, o.pregunta, o.respuesta[:2000]])
+        w.writerow([f"{datetime.now():%Y-%m-%d %H:%M}", o.valor, _texto_seguro(o.pregunta), _texto_seguro(o.respuesta[:2000])])
     return {"ok": True}
 
 

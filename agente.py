@@ -38,12 +38,25 @@ HERRAMIENTAS = [
                         "oportunidades de mejora, observaciones y recomendaciones."),
         "parameters": {"type": "object", "required": ["consulta"], "properties": {
             "consulta": {"type": "string", "description": "Lo que se quiere encontrar, en lenguaje natural."},
-            "programa": {"type": "string", "enum": ["Estudiante Embajador", "Docente Embajador",
-                                                    "Casa Cundinamarca", "Voluntariado Internacional"]},
-            "sentido": {"type": "string", "enum": ["Entrante", "Saliente"]},
-            "pais": {"type": "string", "description": "País de la universidad con la que se hizo la movilidad."},
-            "periodo_desde": {"type": "string", "description": "Periodo inicial, formato 2024-1."},
-            "periodo_hasta": {"type": "string", "description": "Periodo final, formato 2025-2."}}}}},
+            # Filtros opcionales: el modelo puede omitirlos o enviarlos vacíos (null)
+            "programa": {"type": ["string", "null"], "enum": ["Estudiante Embajador", "Docente Embajador",
+                                                              "Casa Cundinamarca", "Voluntariado Internacional", None]},
+            "sentido": {"type": ["string", "null"], "enum": ["Entrante", "Saliente", None]},
+            "pais": {"type": ["string", "null"], "description": "País de la universidad con la que se hizo la movilidad."},
+            "periodo_desde": {"type": ["string", "null"], "description": "Periodo inicial, formato 2024-1."},
+            "periodo_hasta": {"type": ["string", "null"], "description": "Periodo final, formato 2025-2."}}}}},
+    {"type": "function", "function": {
+        "name": "listar_informes",
+        "description": ("Lista los informes finales cargados en el sistema (programa, periodo, sentido, universidad, "
+                        "país y si están enlazados a la base de movilidad). Úsala para saber qué informes hay, "
+                        "cuántos se han entregado o cuáles faltan; no sirve para leer su contenido."),
+        "parameters": {"type": "object", "properties": {
+            "programa": {"type": ["string", "null"], "enum": ["Estudiante Embajador", "Docente Embajador",
+                                                              "Casa Cundinamarca", "Voluntariado Internacional", None]},
+            "sentido": {"type": ["string", "null"], "enum": ["Entrante", "Saliente", None]},
+            "pais": {"type": ["string", "null"], "description": "País de la universidad de la movilidad."},
+            "periodo_desde": {"type": ["string", "null"], "description": "Periodo inicial, formato 2024-1."},
+            "periodo_hasta": {"type": ["string", "null"], "description": "Periodo final, formato 2025-2."}}}}},
 ]
 
 SISTEMA = """Eres el asistente de la Oficina Dialogando con el Mundo de la Universidad de Cundinamarca.
@@ -52,6 +65,8 @@ Respondes preguntas sobre la movilidad internacional de estudiantes y docentes u
 Cómo trabajar:
 - Decide qué herramienta necesitas. Para cifras y registros usa consultar_base_movilidad; para lo que cuentan los
   participantes en sus informes usa buscar_en_informes. Si la pregunta mezcla ambas cosas, usa las dos.
+- Para saber qué informes hay o cuántos se entregaron usa listar_informes. El listado completo ya se le muestra
+  al usuario en pantalla: no lo repitas, solo resume las cifras.
 - Puedes llamar herramientas varias veces. Si una consulta falla o no trae resultados, corrígela e inténtalo de nuevo.
 - Responde SOLO con lo que devuelvan las herramientas. Si no hay información suficiente, dilo; no inventes.
 - Cuando uses fragmentos de informes, cita su número entre corchetes, por ejemplo [1] o [2][3].
@@ -123,17 +138,51 @@ def _consultar_base(estado, sql):
     return texto
 
 
-EJECUTORES = {"consultar_base_movilidad": _consultar_base, "buscar_en_informes": _buscar_en_informes}
-NOMBRES = {"consultar_base_movilidad": "Consultó la base de datos de movilidad",
+def _listar_informes(estado, programa=None, sentido=None, pais=None, periodo_desde=None, periodo_hasta=None):
+    filtros, params = [], []
+    for condicion, valor in (("programa_movilidad = %s", programa), ("sentido = %s", sentido),
+                             ("pais ILIKE %s", pais), ("periodo >= %s", periodo_desde),
+                             ("periodo <= %s", periodo_hasta)):
+        if valor:
+            filtros.append(condicion)
+            params.append(valor)
+    donde = ("WHERE " + " AND ".join(filtros)) if filtros else ""
+    sql = f"""SELECT regexp_replace(archivo, '\\.pdf$', '', 'i') AS informe, programa_movilidad, periodo, sentido, universidad, pais,
+                     CASE WHEN id_registro_movilidad IS NULL THEN 'No' ELSE 'Sí' END AS en_base_de_movilidad
+              FROM movilidad.informe {donde} ORDER BY periodo, programa_movilidad, archivo"""
+    with psycopg2.connect(**config.PG) as con, con.cursor() as cur:
+        cur.execute(sql, params)
+        datos = pd.DataFrame(cur.fetchall(), columns=[c[0] for c in cur.description])
+    estado["tablas"].append(datos)
+    if datos.empty:
+        return "No hay informes cargados con esos filtros."
+    # Al modelo solo van cifras: los nombres de archivo llevan el nombre del estudiante
+    resumen = datos.groupby(["programa_movilidad", "periodo"]).size().reset_index(name="informes")
+    sin_enlace = int((datos["en_base_de_movilidad"] == "No").sum())
+    return (f"Hay {len(datos)} informes cargados ({sin_enlace} no enlazados a un registro de la base de movilidad). "
+            f"El listado completo ya se le muestra al usuario. Resumen por programa y periodo:\n"
+            + resumen.to_string(index=False))
+
+
+EJECUTORES = {"consultar_base_movilidad": _consultar_base, "buscar_en_informes": _buscar_en_informes,
+              "listar_informes": _listar_informes}
+NOMBRES = {"listar_informes": "Consultó el listado de informes",
+           "consultar_base_movilidad": "Consultó la base de datos de movilidad",
            "buscar_en_informes": "Buscó en los informes"}
 
 
 # ------------------------------------------------------------------ ciclo del agente
 def _llamar_modelo(mensajes, con_herramientas=True):
     extra = dict(tools=HERRAMIENTAS, tool_choice="auto") if con_herramientas else {}
-    r = _cliente().chat.completions.create(model=config.LLM["modelo"], temperature=0.1,
-                                           messages=mensajes, **extra)
-    return r.choices[0].message
+    for intento in range(2):
+        try:
+            r = _cliente().chat.completions.create(model=config.LLM["modelo"], temperature=0.1,
+                                                   messages=mensajes, **extra)
+            return r.choices[0].message
+        except Exception as e:
+            # A veces el modelo arma mal la llamada a una herramienta: se reintenta una vez
+            if "tool_use_failed" not in str(e) or intento == 1:
+                raise
 
 
 def responder(pregunta, historial=None):

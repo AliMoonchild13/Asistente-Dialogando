@@ -195,11 +195,11 @@ def cargar(df):
         con.close()
 
 
-if __name__ == "__main__":
-    ruta = sys.argv[1] if len(sys.argv) > 1 else config.ARCHIVO_EXCEL
+def cargar_excel(ruta, reporte="reporte_limpieza.xlsx"):
+    """Limpia el Excel, guarda el reporte de limpieza y carga todo en la base (que debe estar vacía)."""
     df, cambios = limpiar(ruta)
 
-    with pd.ExcelWriter("reporte_limpieza.xlsx") as w:
+    with pd.ExcelWriter(reporte) as w:
         cambios.to_excel(w, sheet_name="valores_unificados", index=False)
         df[df["fecha_inicio"].isna()][["fila_excel", "periodo", "programa_movilidad", "nombres_apellidos"]] \
             .to_excel(w, sheet_name="sin_fechas", index=False)
@@ -210,5 +210,9 @@ if __name__ == "__main__":
 
     registros, personas = cargar(df)
     print(f"OK: {registros} movilidades y {personas} personas cargadas.")
-    print(f"Valores unificados: {len(cambios)} (ver reporte_limpieza.xlsx)")
+    print(f"Valores unificados: {len(cambios)} (ver {reporte})")
     print(f"Registros sin fechas: {df['fecha_inicio'].isna().sum()}")
+
+
+if __name__ == "__main__":
+    cargar_excel(sys.argv[1] if len(sys.argv) > 1 else config.ARCHIVO_EXCEL)

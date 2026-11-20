@@ -3,10 +3,11 @@
 Oficina Dialogando con el Mundo – Universidad de Cundinamarca.  
 Sistema de información con base de datos PostgreSQL, Power BI y un agente de IA con RAG para consultar las cifras de movilidad y los informes finales de los participantes.
 
-## Versión v2.1: Paquete instalable para Windows
+## Versión v2.2: Arranque y actualización del Excel
 
-- Instalación con archivos .bat y PostgreSQL en Docker.
-- Configuración en archivo .env (sin claves en el código).
+- Script de arranque (iniciar.py).
+- Actualización incremental del Excel (actualizar_excel.py): nuevos, corregidos y quitados.
+- Plantilla .env.example y .gitignore.
 
 ## Datos y claves
 

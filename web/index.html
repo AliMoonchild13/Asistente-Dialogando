@@ -96,7 +96,9 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFFFF}
 .chip{display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;border:1px solid #BFD9C9;background:#FFFFFF;color:#007B3E;font-size:14px;line-height:20px;font-weight:600;cursor:pointer;text-align:left}
 .chip:hover{background:#E6F2EB}
 
-.texto{display:flex;flex-direction:column;gap:12px;font-size:16px;line-height:26px}
+.texto{display:flex;flex-direction:column;gap:12px;font-size:16px;line-height:26px;overflow-wrap:anywhere}
+.texto .codigo{margin:0;padding:12px 16px;background:#F4F5F3;border-radius:8px;font-size:13px;line-height:20px;white-space:pre-wrap;overflow-wrap:anywhere}
+.texto .cita-bloque{padding-left:12px;border-left:3px solid #DAAA00;font-style:italic}
 .texto p{margin:0;text-wrap:pretty}
 .texto ol,.texto ul{margin:0;padding-left:24px;display:flex;flex-direction:column;gap:8px}
 .texto li{padding-left:4px}
@@ -280,8 +282,15 @@ const ic = (nombre, clase) => el("span", { class: "ic" + (clase ? " " + clase : 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const nf = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
 const pct = x => x.toFixed(1).replace(".", ",") + " %";
+const NOMBRES_COLUMNA = { pais: "país", pais_destino: "país de destino", pais_origen: "país de origen", anio: "año",
+  nombres_apellidos: "nombre", ies: "IES", ies_destino: "IES de destino", ies_origen: "IES de origen",
+  programa_movilidad: "programa de movilidad", programa_academico: "programa académico", tipo_movilidad: "tipo de movilidad",
+  unidad_regional: "sede", fecha_inicio: "fecha de inicio", fecha_fin: "fecha de finalización", numero: "número",
+  en_base_de_movilidad: "en la base de movilidad" };
 function titulo(col) {
-  const t = String(col).replace(/_/g, " ").trim();
+  const clave = String(col).trim().toLowerCase();
+  const t = NOMBRES_COLUMNA[clave] || String(col).replace(/_/g, " ").trim()
+    .replace(/\bpais\b/gi, "país").replace(/\banio\b/gi, "año").replace(/\bnumero\b/gi, "número");
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
@@ -289,6 +298,7 @@ function titulo(col) {
 function enLinea(texto, nFuentes) {
   let h = esc(texto);
   h = h.replace(/`([^`]+)`/g, "$1");
+  h = h.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
   h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   h = h.replace(/(^|[\s(])\*([^*\s][^*]*)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
   h = h.replace(/\s*【\s*(\d{1,2})[^】]*】/g, " [$1]");        // el modelo a veces escribe 【1】 o 【1†fuente】
@@ -306,18 +316,31 @@ function markdown(texto, nFuentes) {
   const out = [];
   let i = 0;
   const esLista = l => /^\s*([-*•]|\d+[.)])\s+/.test(l);
+  const esTabla = l => /^\s*\|.*\|/.test(l);
+  const esCodigo = l => /^\s*```/.test(l);
   while (i < lineas.length) {
     const l = lineas[i];
-    if (!l.trim()) { i++; continue; }
-    if (/^\s*\|.*\|\s*$/.test(l)) {                       // tabla con barras
+    if (!l.trim() || /^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { i++; continue; }   // vacías y líneas "---"
+    if (esCodigo(l)) {                                    // bloque de código ```...```
+      const cod = []; i++;
+      while (i < lineas.length && !esCodigo(lineas[i])) cod.push(lineas[i]), i++;
+      i++;
+      out.push(`<pre class="codigo">${esc(cod.join("\n"))}</pre>`);
+      continue;
+    }
+    if (esTabla(l)) {                                     // tabla con barras
       const filas = [];
-      while (i < lineas.length && /^\s*\|.*\|\s*$/.test(lineas[i])) {
+      while (i < lineas.length && esTabla(lineas[i])) {
         if (!/^\s*\|[\s:|-]+\|\s*$/.test(lineas[i]))
           filas.push(lineas[i].trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim()));
         i++;
       }
       if (filas.length) {
         const cab = filas.shift();
+        filas.forEach((f, k) => {                         // misma cantidad de celdas que el encabezado
+          if (f.length > cab.length) filas[k] = f.slice(0, cab.length - 1).concat(f.slice(cab.length - 1).join(" "));
+          while (filas[k].length < cab.length) filas[k].push("");
+        });
         out.push('<div class="tabla-md"><table><thead><tr>' + cab.map(c => `<th>${enLinea(c, nFuentes)}</th>`).join("") +
           "</tr></thead><tbody>" + filas.map(f => "<tr>" + f.map(c => `<td>${enLinea(c, nFuentes)}</td>`).join("") + "</tr>").join("") +
           "</tbody></table></div>");
@@ -326,7 +349,9 @@ function markdown(texto, nFuentes) {
     }
     if (esLista(l)) {
       const ordenada = /^\s*\d+[.)]\s+/.test(l), items = [];
-      while (i < lineas.length && (esLista(lineas[i]) || (/^\s{2,}\S/.test(lineas[i]) && items.length))) {
+      const mismoTipo = x => /^\s{2,}/.test(x) || /^\s*\d+[.)]\s+/.test(x) === ordenada;   // las anidadas se unen
+      while (i < lineas.length && ((esLista(lineas[i]) && (!items.length || mismoTipo(lineas[i])))
+             || (/^\s{2,}\S/.test(lineas[i]) && items.length))) {
         if (esLista(lineas[i])) items.push(lineas[i].replace(/^\s*([-*•]|\d+[.)])\s+/, ""));
         else items[items.length - 1] += " " + lineas[i].trim();
         i++;
@@ -335,10 +360,17 @@ function markdown(texto, nFuentes) {
       out.push(`<${t}>` + items.map(x => `<li>${enLinea(x, nFuentes)}</li>`).join("") + `</${t}>`);
       continue;
     }
+    if (/^\s*>/.test(l)) {                                // cita en bloque "> ..."
+      const cita = [];
+      while (i < lineas.length && /^\s*>/.test(lineas[i])) cita.push(lineas[i].replace(/^\s*>\s?/, "")), i++;
+      out.push(`<p class="cita-bloque">${enLinea(cita.join(" "), nFuentes)}</p>`);
+      continue;
+    }
     const enc = /^\s*#{1,6}\s+(.*)$/.exec(l);
     if (enc) { out.push(`<p><strong>${enLinea(enc[1].replace(/\*\*/g, ""), nFuentes)}</strong></p>`); i++; continue; }
     const parr = [];
-    while (i < lineas.length && lineas[i].trim() && !esLista(lineas[i]) && !/^\s*\|.*\|\s*$/.test(lineas[i]) && !/^\s*#{1,6}\s+/.test(lineas[i])) parr.push(lineas[i].trim()), i++;
+    while (i < lineas.length && lineas[i].trim() && !esLista(lineas[i]) && !esTabla(lineas[i]) && !esCodigo(lineas[i])
+           && !/^\s*>/.test(lineas[i]) && !/^\s*#{1,6}\s+/.test(lineas[i])) parr.push(lineas[i].trim()), i++;
     out.push(`<p>${enLinea(parr.join(" "), nFuentes)}</p>`);
   }
   return out.join("");
@@ -470,7 +502,7 @@ function pintarRespuesta(t, r) {
   const texto = el("div", { class: "texto" });
   texto.innerHTML = markdown(r.respuesta || "No encontré información para responder esta pregunta.", r.fuentes.length);
   const partes = [texto];
-  r.tablas.filter(x => !(x.filas.length === 1 && x.columnas.length === 1)).forEach(x => partes.push(nodoTabla(x)));
+  r.tablas.forEach(x => partes.push(nodoTabla(x)));
 
   let cajaFuentes = null;
   if (r.fuentes.length) { cajaFuentes = nodoFuentes(r.fuentes); partes.push(cajaFuentes); }
@@ -512,8 +544,11 @@ const CLAVE = "asistente_movilidad_conversaciones", MAX_CONVERSACIONES = 30;
 let conversaciones = [];      // [{id, titulo, turnos:[{pregunta, datos}]}], la más reciente primero
 let actual = null;            // conversación abierta
 function cargarGuardadas() {
-  try { const c = JSON.parse(localStorage.getItem(CLAVE) || "[]"); conversaciones = Array.isArray(c) ? c : []; }
-  catch { conversaciones = []; }
+  try {
+    const c = JSON.parse(localStorage.getItem(CLAVE) || "[]");
+    conversaciones = (Array.isArray(c) ? c : []).filter(x => x && typeof x.titulo === "string" && Array.isArray(x.turnos)
+      && x.turnos.every(g => g && typeof g.pregunta === "string" && g.datos && Array.isArray(g.datos.tablas) && Array.isArray(g.datos.fuentes)));
+  } catch { conversaciones = []; }
 }
 function guardar() {
   conversaciones = conversaciones.slice(0, MAX_CONVERSACIONES);
