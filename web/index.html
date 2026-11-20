@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es-419">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asistente de Movilidad Internacional</title>
+<style>
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:400 700;font-display:swap;src:url("fuentes/montserrat-latin-ext.woff2") format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Montserrat';font-style:normal;font-weight:400 700;font-display:swap;src:url("fuentes/montserrat-latin.woff2") format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Material Symbols Outlined';font-style:normal;font-weight:400;font-display:block;src:url("fuentes/material-symbols.woff2") format('woff2')}
+
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Montserrat,'Helvetica Neue',Arial,sans-serif;color:#4D4D4D;-webkit-font-smoothing:antialiased;background:#FFFFFF}
+button,input{font-family:inherit}
+a{color:#007B3E}a:hover{color:#00482B}
+button:focus-visible,input:focus-visible{outline:2px solid #007B3E;outline-offset:2px}
+@keyframes ucSpin{to{transform:rotate(360deg)}}
+@keyframes ucPulse{0%,100%{opacity:.45}50%{opacity:1}}
+.ic{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;line-height:1;display:inline-block;letter-spacing:normal;text-transform:none;white-space:nowrap;direction:ltr;-webkit-font-feature-settings:'liga';font-feature-settings:'liga'}
+.oculto{display:none!important}
+
+.app{height:100%;min-height:640px;display:flex;flex-direction:column}
+header{height:72px;flex:none;background:#00482B;display:flex;align-items:center;gap:24px;padding:0 32px}
+header img{height:40px;width:auto;display:block}
+header .sep{width:1px;height:32px;background:#DAAA00}
+header .tit{font-size:16px;line-height:22px;font-weight:600;color:#FFFFFF}
+header .sub{font-size:13px;line-height:18px;font-weight:500;color:#FBE122}
+.cuerpo{flex:1;display:flex;min-height:0}
+
+aside{width:272px;flex:none;background:#F4F5F3;border-right:1px solid #E3E6E2;display:flex;flex-direction:column;gap:24px;padding:24px 16px;overflow-y:auto}
+.btn-nueva{height:44px;flex:none;display:flex;align-items:center;justify-content:center;gap:8px;background:#007B3E;color:#FFFFFF;border:0;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+.btn-nueva:hover{background:#00482B}
+.btn-nueva .ic{font-size:20px}
+aside nav{display:flex;flex-direction:column;gap:4px}
+.rec-tit{font-size:12px;line-height:16px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5E5E5E;padding:0 12px 8px}
+.rec{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px;border:0;cursor:pointer;font-size:14px;line-height:20px;background:transparent;color:#4D4D4D;font-weight:500}
+.rec span{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.rec:hover{background:#FFFFFF}
+.rec[aria-current="true"]{background:#FFFFFF;color:#00482B;font-weight:600}
+.rec-vacio{font-size:13px;line-height:20px;color:#5E5E5E;padding:0 12px}
+
+main{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFFFF}
+.scroll{flex:1;min-height:0;overflow-y:auto}
+.col{max-width:800px;margin:0 auto;padding:40px 32px;display:flex;flex-direction:column;gap:40px}
+
+.vacio{display:flex;flex-direction:column;gap:40px;padding-top:64px}
+.vacio .barra{width:48px;height:4px;border-radius:2px;background:#DAAA00}
+.vacio h1{margin:0;font-size:32px;line-height:40px;font-weight:700;color:#00482B;text-wrap:pretty}
+.vacio p{margin:0;font-size:16px;line-height:26px;max-width:640px;text-wrap:pretty}
+.vacio .intro{display:flex;flex-direction:column;gap:16px}
+.et{font-size:13px;line-height:18px;font-weight:600;color:#5E5E5E}
+.ejemplos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:12px}
+.ej{display:flex;flex-direction:column;align-items:flex-start;gap:16px;min-height:168px;padding:20px;text-align:left;background:#FFFFFF;border:1px solid #DDE1DC;border-radius:12px;cursor:pointer}
+.ej:hover{border-color:#007B3E;background:#F6FAF7}
+.ej .cuad{width:40px;height:40px;border-radius:8px;background:#E6F2EB;color:#007B3E;display:flex;align-items:center;justify-content:center}
+.ej .cuad .ic{font-size:22px}
+.ej .q{flex:1;font-size:15px;line-height:22px;font-weight:600;color:#00482B;text-wrap:pretty}
+.ej .tag{font-size:12px;line-height:16px;font-weight:600;color:#5E5E5E}
+
+.turno{display:flex;flex-direction:column;gap:24px;scroll-margin-top:24px}
+.preg{display:flex;justify-content:flex-end}
+.preg div{max-width:560px;background:#F4F5F3;border-radius:16px 16px 4px 16px;padding:12px 16px;font-size:16px;line-height:24px;font-weight:500;color:#00482B;overflow-wrap:anywhere}
+.resp{display:flex;flex-direction:column;gap:16px}
+.resp-tag{display:flex;align-items:center;gap:8px;font-size:13px;line-height:18px;font-weight:600;color:#00482B}
+.resp-tag span{width:8px;height:8px;border-radius:50%;background:#007B3E}
+.contenido{display:flex;flex-direction:column;gap:24px}
+
+.cargando{display:flex;flex-direction:column;gap:16px}
+.cargando .fila{display:flex;align-items:center;gap:12px;font-size:16px;line-height:24px;font-weight:600;color:#00482B}
+.spinner{width:20px;height:20px;border:3px solid #D5E6DC;border-top-color:#007B3E;border-radius:50%;display:inline-block;animation:ucSpin .9s linear infinite}
+.esq{display:flex;flex-direction:column;gap:10px;animation:ucPulse 1.6s ease-in-out infinite}
+.esq div{height:12px;border-radius:6px;background:#EDF0EC}
+
+.limite{display:flex;gap:16px;align-items:flex-start;padding:20px;border-radius:12px;background:#FEF5E9;border:1px solid #F5CF9C}
+.limite .circ{width:40px;height:40px;flex:none;border-radius:50%;background:#F7931E;color:#00482B;display:flex;align-items:center;justify-content:center}
+.limite .circ .ic,.aviso .circ .ic{font-size:22px}
+.limite .t1{font-size:16px;line-height:24px;font-weight:600;color:#00482B}
+.limite .t2{font-size:15px;line-height:24px}
+.limite .acc{display:flex;align-items:center;gap:16px;margin-top:12px}
+.btn-sec{height:40px;padding:0 16px;display:inline-flex;align-items:center;gap:8px;border-radius:8px;border:1px solid #007B3E;background:#FFFFFF;color:#007B3E;font-size:14px;font-weight:600;cursor:pointer}
+.btn-sec:hover:not(:disabled){background:#E6F2EB}
+.btn-sec:disabled{border-color:#CFD6CE;color:#767676;cursor:not-allowed}
+.btn-sec .ic{font-size:18px}
+.limite .cuenta{font-size:13px;line-height:18px;color:#5E5E5E;font-variant-numeric:tabular-nums}
+
+.aviso{display:flex;flex-direction:column;gap:20px;padding:24px;border:1px solid #E3E6E2;border-radius:12px}
+.aviso .sup{display:flex;gap:16px;align-items:flex-start}
+.aviso .circ{width:40px;height:40px;flex:none;border-radius:50%;background:#F4F5F3;color:#4D4D4D;display:flex;align-items:center;justify-content:center}
+.aviso h3{margin:0;font-size:18px;line-height:26px;font-weight:600;color:#00482B}
+.aviso p{margin:4px 0 0;font-size:16px;line-height:26px;text-wrap:pretty;overflow-wrap:anywhere}
+.aviso .sug{display:flex;flex-direction:column;gap:12px;padding-left:56px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;border:1px solid #BFD9C9;background:#FFFFFF;color:#007B3E;font-size:14px;line-height:20px;font-weight:600;cursor:pointer;text-align:left}
+.chip:hover{background:#E6F2EB}
+
+.texto{display:flex;flex-direction:column;gap:12px;font-size:16px;line-height:26px}
+.texto p{margin:0;text-wrap:pretty}
+.texto ol,.texto ul{margin:0;padding-left:24px;display:flex;flex-direction:column;gap:8px}
+.texto li{padding-left:4px}
+.texto strong{font-weight:600;color:#00482B}
+.texto .tabla-md{border:1px solid #E3E6E2;border-radius:8px;overflow-x:auto}
+.texto table{border-collapse:collapse;width:100%;font-size:15px;line-height:22px}
+.texto th{background:#F4F5F3;font-weight:600;font-size:13px;text-align:left;padding:8px 12px}
+.texto td{padding:8px 12px;border-top:1px solid #EDEFEC}
+.cita{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 5px;margin:0 1px;border-radius:4px;border:0;background:#E6F2EB;color:#00482B;font-size:12px;font-weight:700;line-height:1;vertical-align:2px;cursor:pointer}
+.cita:hover{background:#007B3E;color:#FFFFFF}
+
+.bloque-tabla{display:flex;flex-direction:column;gap:16px}
+.caja{border:1px solid #E3E6E2;border-radius:12px;overflow:hidden}
+.caja-cab{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px}
+.caja h3{margin:0;font-size:16px;line-height:22px;font-weight:600;color:#00482B}
+.btn-exp{flex:none;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border:1px solid #007B3E;border-radius:8px;background:#FFFFFF;color:#007B3E;font-size:14px;font-weight:600;cursor:pointer}
+.btn-exp:hover{background:#E6F2EB}
+.btn-exp .ic{font-size:18px}
+.t3{display:grid;grid-template-columns:minmax(0,1fr) 96px 128px;gap:16px;font-variant-numeric:tabular-nums}
+.t3.cab{padding:10px 20px;background:#F4F5F3;font-size:13px;line-height:18px;font-weight:600;color:#4D4D4D}
+.t3.fila{padding:12px 20px;border-top:1px solid #EDEFEC;font-size:15px;line-height:22px}
+.t3.pie{padding:12px 20px;border-top:1px solid #CFD6CE;background:#FAFBFA;font-size:15px;line-height:22px;font-weight:700;color:#00482B}
+.t3 .der{text-align:right}
+.t3.fila .e{font-weight:500;color:#00482B;overflow-wrap:anywhere}
+.t3.fila .n{text-align:right;color:#00482B;font-weight:600}
+.tg-scroll{overflow-x:auto;max-height:480px;overflow-y:auto}
+.tg{border-collapse:collapse;width:100%;font-size:15px;line-height:22px;font-variant-numeric:tabular-nums}
+.tg th{position:sticky;top:0;background:#F4F5F3;font-size:13px;line-height:18px;font-weight:600;color:#4D4D4D;text-align:left;padding:10px 20px;white-space:nowrap}
+.tg td{padding:12px 20px;border-top:1px solid #EDEFEC;color:#00482B;font-weight:500}
+.tg .num{text-align:right;font-weight:600}
+.tg .nw{white-space:nowrap}
+.nota-tabla{padding:10px 20px;border-top:1px solid #EDEFEC;background:#FAFBFA;font-size:13px;line-height:18px;color:#5E5E5E}
+.graf{border:1px solid #E3E6E2;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:20px}
+.graf h3{margin:0;font-size:16px;line-height:22px;font-weight:600;color:#00482B}
+.barras{display:flex;flex-direction:column;gap:12px}
+.barra-f{display:grid;grid-template-columns:160px minmax(0,1fr);gap:16px;align-items:center}
+.barra-f .e{font-size:14px;line-height:20px;font-weight:500;color:#00482B;text-align:right;text-wrap:pretty;overflow-wrap:anywhere}
+.barra-f .pista{display:flex;align-items:center;gap:8px;border-left:1px solid #BFC5BE;min-height:32px}
+.barra-f .b{height:24px;background:#007B3E;border-radius:0 4px 4px 0;min-width:2px}
+.barra-f .v{font-size:14px;line-height:20px;font-weight:600;color:#00482B;font-variant-numeric:tabular-nums}
+
+.acord-btn{width:100%;display:flex;align-items:center;gap:12px;padding:14px 20px;background:#FFFFFF;border:0;cursor:pointer;text-align:left}
+.acord-btn:hover{background:#F6FAF7}
+.acord-btn .i1{font-size:20px;color:#007B3E}
+.acord-btn .t{flex:1;font-size:15px;line-height:22px;font-weight:600;color:#00482B}
+.acord-btn .h{font-size:13px;line-height:18px;font-weight:500;color:#5E5E5E}
+.acord-btn .ch{font-size:22px;color:#00482B}
+.fuentes{padding:0 20px 4px}
+.fuente{display:grid;grid-template-columns:28px minmax(0,1fr);gap:16px;padding:16px 8px;margin:0 -8px;border-top:1px solid #EDEFEC;border-radius:8px;scroll-margin:80px}
+.fuente.res{background:#FEF9DC}
+.fuente .num{width:28px;height:28px;border-radius:6px;background:#00482B;color:#FFFFFF;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.fuente .det{display:flex;flex-direction:column;gap:8px;min-width:0}
+.fuente .arch{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;font-weight:600;color:#00482B;overflow-wrap:anywhere}
+.fuente .arch .ic{font-size:18px;color:#007B3E;flex:none}
+.fuente .sec{font-size:13px;line-height:18px;color:#5E5E5E}
+.fuente .sec b{font-weight:600;color:#4D4D4D}
+.fuente blockquote{margin:0;padding:12px 16px;background:#F4F5F3;border-radius:8px;font-size:15px;line-height:24px;font-style:italic;color:#4D4D4D;text-wrap:pretty}
+.fuente.res blockquote{background:#FFFFFF}
+.fuente blockquote.corto span{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.ver-mas{align-self:flex-start;border:0;background:transparent;padding:0;color:#007B3E;font-size:13px;font-weight:600;cursor:pointer}
+.ver-mas:hover{color:#00482B}
+
+.como{background:#FAFBFA}
+.como .acord-btn{background:transparent}
+.como .acord-btn:hover{background:#F4F5F3}
+.pasos{list-style:none;margin:0;padding:4px 20px 20px;display:flex;flex-direction:column}
+.pasos li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:16px}
+.pasos .riel{display:flex;flex-direction:column;align-items:center}
+.pasos .n{width:28px;height:28px;flex:none;border-radius:50%;border:2px solid #007B3E;background:#FFFFFF;color:#007B3E;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.pasos .linea{flex:1;width:2px;background:#CFE3D6;min-height:12px}
+.pasos li:last-child .linea{background:transparent}
+.pasos .tx{display:flex;flex-direction:column;gap:2px;padding:3px 0 16px}
+.pasos .tx b{font-size:15px;line-height:22px;font-weight:600;color:#00482B;overflow-wrap:anywhere}
+.pasos .tx span{font-size:14px;line-height:22px;color:#4D4D4D;text-wrap:pretty}
+
+.acciones{display:flex;align-items:center;gap:4px}
+.btn-txt{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#4D4D4D;font-size:14px;font-weight:500;cursor:pointer}
+.btn-txt:hover{background:#F4F5F3;color:#00482B}
+.btn-txt .ic{font-size:18px}
+.acciones .div{width:1px;height:20px;background:#E3E6E2;margin:0 4px}
+.btn-ic{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:transparent;color:#4D4D4D;cursor:pointer}
+.btn-ic:hover{background:#F4F5F3}
+.btn-ic .ic{font-size:20px;font-variation-settings:'FILL' 0}
+.btn-ic[aria-pressed="true"]{background:#E6F2EB;color:#007B3E}
+.btn-ic[aria-pressed="true"] .ic{font-variation-settings:'FILL' 1}
+.gracias{margin-left:8px;font-size:13px;line-height:18px;color:#5E5E5E}
+
+.pie{flex:none;border-top:1px solid #E3E6E2;background:#FFFFFF;padding:16px 32px 12px}
+.pie-col{max-width:800px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column;gap:8px}
+.entrada{display:flex;align-items:center;gap:8px;border:1px solid #BFC5BE;border-radius:12px;padding:6px 6px 6px 16px;background:#FFFFFF}
+.entrada:focus-within{border-color:#007B3E}
+.entrada.ocupado{border-color:#E3E6E2;background:#F4F5F3}
+.entrada input{flex:1;min-width:0;height:40px;border:0;outline:none;background:transparent;font-size:16px;color:#00482B}
+.entrada input::placeholder{color:#767676}
+.btn-enviar{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:#007B3E;color:#FFFFFF;cursor:pointer}
+.btn-enviar:disabled{background:#A9C9B6;cursor:not-allowed}
+.btn-enviar .ic{font-size:22px}
+.nota{margin:0;font-size:12px;line-height:18px;color:#5E5E5E;text-align:center;text-wrap:pretty}
+
+@media (max-width:900px){aside{display:none}.ejemplos{grid-template-columns:1fr}.ej{min-height:0}.col{padding:24px 16px}.pie{padding:12px 16px}.pie-col{padding:0}header{padding:0 16px;gap:16px}.barra-f{grid-template-columns:96px minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <img src="logo-ucundinamarca-blanco.png" alt="Universidad de Cundinamarca">
+  <div class="sep"></div>
+  <div>
+    <div class="tit">Asistente de Movilidad Internacional</div>
+    <div class="sub">Oficina Dialogando con el Mundo</div>
+  </div>
+</header>
+
+<div class="cuerpo">
+  <aside>
+    <button class="btn-nueva" id="btnNueva"><span class="ic" aria-hidden="true">add</span>Nueva conversación</button>
+    <nav aria-label="Preguntas recientes">
+      <div class="rec-tit">Recientes</div>
+      <div id="recientes"></div>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="scroll" id="scroll">
+      <div class="col" id="col">
+        <div class="vacio" id="vacio">
+          <div class="intro">
+            <div class="barra"></div>
+            <h1>Hola, ¿qué quieres consultar hoy?</h1>
+            <p>Puedo responder preguntas sobre las movilidades internacionales de estudiantes y docentes entre 2017 y 2026, y resumir lo que cuentan los participantes en sus informes finales.</p>
+          </div>
+          <div>
+            <div class="et">Prueba con una de estas preguntas</div>
+            <div class="ejemplos" id="ejemplos"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pie">
+      <div class="pie-col">
+        <div class="entrada" id="entrada">
+          <input id="campo" placeholder="Escribe tu pregunta" aria-label="Escribe tu pregunta" autocomplete="off" maxlength="500">
+          <button class="btn-enviar" id="btnEnviar" aria-label="Enviar pregunta" disabled><span class="ic" aria-hidden="true">arrow_upward</span></button>
+        </div>
+        <p class="nota">Las respuestas se generan a partir de los datos e informes de la oficina. Verifica las cifras antes de usarlas en documentos oficiales.</p>
+      </div>
+    </div>
+  </main>
+</div>
+</div>
+
+<script>
+"use strict";
+const EJEMPLOS = [
+  { icono: "bar_chart", etiqueta: "Cifras", q: "¿Cuántas movilidades salientes hubo por país en 2025?" },
+  { icono: "description", etiqueta: "Informes finales", q: "¿Qué oportunidades de mejora mencionan los estudiantes embajadores?" },
+  { icono: "join_inner", etiqueta: "Cifras e informes", q: "¿A qué país viajaron más estudiantes en 2025 y qué cuentan de esa experiencia?" }
+];
+const MAX_FILAS_VISIBLES = 100, MAX_BARRAS = 15;
+
+const $ = id => document.getElementById(id);
+const turnos = [];            // {id, pregunta, respuesta, nodo}
+let ocupado = false;
+
+/* ---------- utilidades de DOM ---------- */
+function el(tag, attrs, ...hijos) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const h of hijos.flat()) if (h != null) n.append(h);
+  return n;
+}
+const ic = (nombre, clase) => el("span", { class: "ic" + (clase ? " " + clase : ""), "aria-hidden": "true", text: nombre });
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nf = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
+const pct = x => x.toFixed(1).replace(".", ",") + " %";
+function titulo(col) {
+  const t = String(col).replace(/_/g, " ").trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/* ---------- texto de la respuesta (Markdown básico, siempre escapado) ---------- */
+function enLinea(texto, nFuentes) {
+  let h = esc(texto);
+  h = h.replace(/`([^`]+)`/g, "$1");
+  h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  h = h.replace(/(^|[\s(])\*([^*\s][^*]*)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+  // citas: [1], [2][3], [1, 2]
+  h = h.replace(/\[(\d{1,2}(?:\s*,\s*\d{1,2})*)\]/g, (m, lista) => {
+    const nums = lista.split(",").map(x => parseInt(x.trim(), 10));
+    if (!nums.every(n => n >= 1 && n <= nFuentes)) return m;
+    return nums.map(n => `<button class="cita" data-cita="${n}" aria-label="Ver fuente ${n}">${n}</button>`).join("");
+  });
+  return h;
+}
+function markdown(texto, nFuentes) {
+  const lineas = String(texto || "").replace(/\r/g, "").split("\n");
+  const out = [];
+  let i = 0;
+  const esLista = l => /^\s*([-*•]|\d+[.)])\s+/.test(l);
+  while (i < lineas.length) {
+    const l = lineas[i];
+    if (!l.trim()) { i++; continue; }
+    if (/^\s*\|.*\|\s*$/.test(l)) {                       // tabla con barras
+      const filas = [];
+      while (i < lineas.length && /^\s*\|.*\|\s*$/.test(lineas[i])) {
+        if (!/^\s*\|[\s:|-]+\|\s*$/.test(lineas[i]))
+          filas.push(lineas[i].trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim()));
+        i++;
+      }
+      if (filas.length) {
+        const cab = filas.shift();
+        out.push('<div class="tabla-md"><table><thead><tr>' + cab.map(c => `<th>${enLinea(c, nFuentes)}</th>`).join("") +
+          "</tr></thead><tbody>" + filas.map(f => "<tr>" + f.map(c => `<td>${enLinea(c, nFuentes)}</td>`).join("") + "</tr>").join("") +
+          "</tbody></table></div>");
+      }
+      continue;
+    }
+    if (esLista(l)) {
+      const ordenada = /^\s*\d+[.)]\s+/.test(l), items = [];
+      while (i < lineas.length && (esLista(lineas[i]) || (/^\s{2,}\S/.test(lineas[i]) && items.length))) {
+        if (esLista(lineas[i])) items.push(lineas[i].replace(/^\s*([-*•]|\d+[.)])\s+/, ""));
+        else items[items.length - 1] += " " + lineas[i].trim();
+        i++;
+      }
+      const t = ordenada ? "ol" : "ul";
+      out.push(`<${t}>` + items.map(x => `<li>${enLinea(x, nFuentes)}</li>`).join("") + `</${t}>`);
+      continue;
+    }
+    const enc = /^\s*#{1,6}\s+(.*)$/.exec(l);
+    if (enc) { out.push(`<p><strong>${enLinea(enc[1].replace(/\*\*/g, ""), nFuentes)}</strong></p>`); i++; continue; }
+    const parr = [];
+    while (i < lineas.length && lineas[i].trim() && !esLista(lineas[i]) && !/^\s*\|.*\|\s*$/.test(lineas[i]) && !/^\s*#{1,6}\s+/.test(lineas[i])) parr.push(lineas[i].trim()), i++;
+    out.push(`<p>${enLinea(parr.join(" "), nFuentes)}</p>`);
+  }
+  return out.join("");
+}
+
+/* ---------- tablas y gráfico ---------- */
+async function exportar(tabla, boton) {
+  try {
+    const r = await fetch("/api/exportar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tabla) });
+    if (!r.ok) throw new Error();
+    const nombre = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "movilidad.xlsx";
+    const url = URL.createObjectURL(await r.blob());
+    const a = el("a", { href: url, download: nombre }); document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    boton.replaceChildren(ic("check"), "Archivo descargado");
+    setTimeout(() => boton.replaceChildren(ic("download"), "Exportar a Excel"), 3000);
+  } catch { boton.replaceChildren(ic("error"), "No se pudo exportar"); }
+}
+function esResumen(t) {       // 2 columnas: etiqueta + cantidad
+  if (t.columnas.length !== 2 || t.filas.length < 2 || t.filas.length > 40) return false;
+  return t.filas.every(f => typeof f[1] === "number" && f[1] >= 0 && Number.isInteger(f[1])) && t.filas.some(f => f[1] > 0);
+}
+function nodoTabla(t) {
+  const btn = el("button", { class: "btn-exp" }, ic("download"), "Exportar a Excel");
+  btn.addEventListener("click", () => exportar(t, btn));
+  if (esResumen(t)) {
+    const [c1, c2] = t.columnas.map(titulo);
+    const suma = t.filas.reduce((a, f) => a + f[1], 0), max = Math.max(...t.filas.map(f => f[1]));
+    const etq = f => f[0] == null ? "Sin dato" : String(f[0]);
+    const caja = el("div", { class: "caja" },
+      el("div", { class: "caja-cab" }, el("h3", { text: `${c2} por ${c1.toLowerCase()}` }), btn),
+      el("div", { class: "t3 cab" }, el("div", { text: c1 }), el("div", { class: "der", text: c2 }), el("div", { class: "der", text: "% del total" })),
+      t.filas.map(f => el("div", { class: "t3 fila" }, el("div", { class: "e", text: etq(f) }), el("div", { class: "n", text: nf.format(f[1]) }), el("div", { class: "der", text: pct(f[1] / suma * 100) }))),
+      el("div", { class: "t3 pie" }, el("div", { text: "Total" }), el("div", { class: "der", text: nf.format(suma) }), el("div", { class: "der", text: "100 %" })));
+    const bloque = el("div", { class: "bloque-tabla" }, caja);
+    if (t.filas.length <= MAX_BARRAS) {
+      bloque.append(el("div", { class: "graf", role: "img", "aria-label": `Gráfico de barras: ${c2} por ${c1.toLowerCase()}` },
+        el("h3", { text: `Distribución por ${c1.toLowerCase()}` }),
+        el("div", { class: "barras" }, t.filas.map(f => {
+          const b = el("div", { class: "b" }); b.style.width = (f[1] / max * 82).toFixed(1) + "%";
+          return el("div", { class: "barra-f" }, el("div", { class: "e", text: etq(f) }), el("div", { class: "pista" }, b, el("span", { class: "v", text: nf.format(f[1]) })));
+        }))));
+    }
+    return bloque;
+  }
+  const visibles = t.filas.slice(0, MAX_FILAS_VISIBLES);
+  const numerica = t.columnas.map((_, j) => t.filas.every(f => f[j] == null || typeof f[j] === "number"));
+  const tabla = el("table", { class: "tg" },
+    el("thead", {}, el("tr", {}, t.columnas.map((c, j) => el("th", { class: numerica[j] ? "num" : "", text: titulo(c) })))),
+    el("tbody", {}, visibles.map(f => el("tr", {}, f.map((v, j) => el("td", { class: numerica[j] ? "num" : (v != null && String(v).length <= 14 ? "nw" : ""), text: v == null ? "—" : (typeof v === "number" && !/anio|año|id/i.test(t.columnas[j]) ? nf.format(v) : String(v)) }))))));
+  const n = t.filas.length;
+  return el("div", { class: "caja" },
+    el("div", { class: "caja-cab" }, el("h3", { text: `Resultados (${nf.format(n)} ${n === 1 ? "registro" : "registros"})` }), btn),
+    el("div", { class: "tg-scroll" }, tabla),
+    n > MAX_FILAS_VISIBLES ? el("div", { class: "nota-tabla", text: `Se muestran los primeros ${MAX_FILAS_VISIBLES} de ${nf.format(n)} registros. Exporta a Excel para verlos todos.` }) : null);
+}
+
+/* ---------- fuentes y pasos ---------- */
+function acordeon(icono, tituloTxt, pistaCerrado, cuerpo, clase) {
+  const pista = el("span", { class: "h", text: pistaCerrado || "" }), ch = ic("expand_more", "ch");
+  const btn = el("button", { class: "acord-btn", "aria-expanded": "false" }, ic(icono, "i1"), el("span", { class: "t", text: tituloTxt }), pista, ch);
+  cuerpo.classList.add("oculto");
+  const caja = el("div", { class: "caja" + (clase ? " " + clase : "") }, btn, cuerpo);
+  caja.abrir = abrir => {
+    cuerpo.classList.toggle("oculto", !abrir);
+    btn.setAttribute("aria-expanded", String(abrir));
+    ch.textContent = abrir ? "expand_less" : "expand_more";
+    if (pistaCerrado) pista.textContent = abrir ? "Ocultar" : pistaCerrado;
+  };
+  btn.addEventListener("click", () => caja.abrir(cuerpo.classList.contains("oculto")));
+  return caja;
+}
+function nodoFuentes(fuentes) {
+  const lista = el("div", { class: "fuentes" }, fuentes.map((f, i) => {
+    const cita = el("blockquote", {}, el("span", { text: "“" + f.texto + "”" }));
+    const det = el("div", { class: "det" },
+      el("div", { class: "arch" }, ic("picture_as_pdf"), el("span", { text: f.archivo })),
+      el("div", { class: "sec" }, "Sección del informe: ", el("b", { text: f.seccion })), cita);
+    if (f.texto.length > 420) {
+      cita.classList.add("corto");
+      const mas = el("button", { class: "ver-mas", text: "Ver fragmento completo" });
+      mas.addEventListener("click", () => { const c = cita.classList.toggle("corto"); mas.textContent = c ? "Ver fragmento completo" : "Ver menos"; });
+      det.append(mas);
+    }
+    return el("div", { class: "fuente", "data-fuente": i + 1 }, el("div", { class: "num", text: i + 1 }), det);
+  }));
+  return acordeon("menu_book", `Fuentes (${fuentes.length})`, "Ver informes citados", lista);
+}
+function nodoPasos(pasos) {
+  const lista = el("ol", { class: "pasos" }, pasos.map((p, i) => el("li", {},
+    el("div", { class: "riel" }, el("div", { class: "n", text: i + 1 }), el("div", { class: "linea" })),
+    el("div", { class: "tx" }, el("b", { text: p.titulo }), el("span", { text: p.detalle })))));
+  return acordeon("checklist", "¿Cómo se obtuvo esta respuesta?", "", lista, "como");
+}
+
+/* ---------- estados de un turno ---------- */
+function pintarCargando(t) {
+  t.contenido.replaceChildren(el("div", { class: "cargando", role: "status", "aria-live": "polite" },
+    el("div", { class: "fila" }, el("span", { class: "spinner" }), "Analizando la pregunta…"),
+    el("div", { class: "esq" }, ["92%", "78%", "54%"].map(w => { const d = el("div"); d.style.width = w; return d; }))));
+}
+function pintarLimite(t, segundos) {
+  const cuenta = el("span", { class: "cuenta" });
+  const btn = el("button", { class: "btn-sec", disabled: "" }, ic("refresh"), "Intentar de nuevo");
+  btn.addEventListener("click", () => consultar(t));
+  let quedan = segundos;
+  const tic = () => {
+    cuenta.textContent = quedan > 0 ? `Disponible en ${quedan} s` : "Ya puedes intentarlo de nuevo";
+    if (quedan <= 0) { btn.disabled = false; clearInterval(t.reloj); }
+    quedan--;
+  };
+  clearInterval(t.reloj); tic(); t.reloj = setInterval(tic, 1000);
+  t.contenido.replaceChildren(el("div", { class: "limite", role: "alert" },
+    el("div", { class: "circ" }, ic("hourglass_top")),
+    el("div", {}, el("div", { class: "t1", text: "Se alcanzó el límite de uso." }),
+      el("div", { class: "t2", text: "Espera un momento e intenta de nuevo." }),
+      el("div", { class: "acc" }, btn, cuenta))));
+}
+function pintarError(t, detalle) {
+  const btn = el("button", { class: "btn-sec" }, ic("refresh"), "Intentar de nuevo");
+  btn.addEventListener("click", () => consultar(t));
+  t.contenido.replaceChildren(el("div", { class: "aviso", role: "alert" },
+    el("div", { class: "sup" }, el("div", { class: "circ" }, ic("error")),
+      el("div", {}, el("h3", { text: "No pude obtener una respuesta" }),
+        el("p", { text: detalle || "Ocurrió un problema al consultar la información. Revisa la conexión e intenta de nuevo." }))),
+    el("div", { class: "sug" }, el("div", {}, btn))));
+}
+function pintarRespuesta(t, r) {
+  const texto = el("div", { class: "texto" });
+  texto.innerHTML = markdown(r.respuesta || "No encontré información para responder esta pregunta.", r.fuentes.length);
+  const partes = [texto];
+  r.tablas.filter(x => !(x.filas.length === 1 && x.columnas.length === 1)).forEach(x => partes.push(nodoTabla(x)));
+
+  let cajaFuentes = null;
+  if (r.fuentes.length) { cajaFuentes = nodoFuentes(r.fuentes); partes.push(cajaFuentes); }
+  if (r.pasos.length) partes.push(nodoPasos(r.pasos));
+
+  texto.addEventListener("click", e => {
+    const c = e.target.closest(".cita");
+    if (!c || !cajaFuentes) return;
+    cajaFuentes.abrir(true);
+    cajaFuentes.querySelectorAll(".fuente").forEach(f => f.classList.toggle("res", f.dataset.fuente === c.dataset.cita));
+    cajaFuentes.querySelector(`.fuente[data-fuente="${c.dataset.cita}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  // copiar y valoración
+  const copiar = el("button", { class: "btn-txt" }, ic("content_copy"), "Copiar respuesta");
+  copiar.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(r.respuesta); copiar.replaceChildren(ic("check"), "Copiado"); }
+    catch { copiar.replaceChildren(ic("error"), "No se pudo copiar"); }
+    setTimeout(() => copiar.replaceChildren(ic("content_copy"), "Copiar respuesta"), 2000);
+  });
+  const gracias = el("span", { class: "gracias oculto", text: "Gracias por tu opinión" });
+  const arriba = el("button", { class: "btn-ic", "aria-label": "Respuesta útil", "aria-pressed": "false" }, ic("thumb_up"));
+  const abajo = el("button", { class: "btn-ic", "aria-label": "Respuesta no útil", "aria-pressed": "false" }, ic("thumb_down"));
+  const opinar = (boton, otro, valor) => boton.addEventListener("click", () => {
+    const activo = boton.getAttribute("aria-pressed") !== "true";
+    boton.setAttribute("aria-pressed", String(activo)); otro.setAttribute("aria-pressed", "false");
+    gracias.classList.toggle("oculto", !activo);
+    if (activo) fetch("/api/opinion", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pregunta: t.pregunta, respuesta: r.respuesta, valor }) }).catch(() => {});
+  });
+  opinar(arriba, abajo, "util"); opinar(abajo, arriba, "no_util");
+  partes.push(el("div", { class: "acciones" }, copiar, el("div", { class: "div" }), arriba, abajo, gracias));
+
+  t.contenido.replaceChildren(...partes);
+}
+
+/* ---------- conversación ---------- */
+function fijarOcupado(v) {
+  ocupado = v;
+  $("campo").disabled = v;
+  $("entrada").classList.toggle("ocupado", v);
+  $("btnEnviar").disabled = v || !$("campo").value.trim();
+  if (!v) $("campo").focus();
+}
+function pintarRecientes(actual) {
+  const cont = $("recientes");
+  if (!turnos.length) { cont.replaceChildren(el("div", { class: "rec-vacio", text: "Aquí aparecerán las preguntas de esta conversación." })); return; }
+  cont.replaceChildren(...turnos.slice().reverse().map(t => {
+    const b = el("button", { class: "rec", title: t.pregunta, "aria-current": t === actual ? "true" : null }, el("span", { text: t.pregunta }));
+    b.addEventListener("click", () => { t.nodo.scrollIntoView({ behavior: "smooth", block: "start" }); pintarRecientes(t); });
+    return b;
+  }));
+}
+async function consultar(t) {
+  clearInterval(t.reloj);
+  fijarOcupado(true);
+  pintarCargando(t);
+  $("scroll").scrollTo({ top: $("scroll").scrollHeight, behavior: "smooth" });
+  const historial = turnos.filter(x => x !== t && x.respuesta).slice(-2).map(x => [x.pregunta, x.respuesta]);
+  try {
+    const r = await fetch("/api/preguntar", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pregunta: t.pregunta, historial }) });
+    const datos = await r.json().catch(() => ({}));
+    if (r.status === 429) pintarLimite(t, datos.espera || 60);
+    else if (!r.ok) pintarError(t, null);
+    else { t.respuesta = datos.respuesta; pintarRespuesta(t, datos); }
+  } catch { pintarError(t, "No hay conexión con el asistente. Verifica que el programa siga abierto en el equipo."); }
+  fijarOcupado(false);
+  t.nodo.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function preguntar(texto) {
+  texto = texto.trim();
+  if (!texto || ocupado) return;
+  $("vacio").classList.add("oculto");
+  $("campo").value = "";
+  const contenido = el("div", { class: "contenido" });
+  const nodo = el("div", { class: "turno" },
+    el("div", { class: "preg" }, el("div", { text: texto })),
+    el("div", { class: "resp" }, el("div", { class: "resp-tag" }, el("span"), "Asistente"), contenido));
+  const t = { pregunta: texto, respuesta: null, nodo, contenido, reloj: null };
+  turnos.push(t);
+  $("col").append(nodo);
+  pintarRecientes(t);
+  consultar(t);
+}
+function nuevaConversacion() {
+  if (ocupado) return;
+  turnos.forEach(t => { clearInterval(t.reloj); t.nodo.remove(); });
+  turnos.length = 0;
+  $("vacio").classList.remove("oculto");
+  pintarRecientes(null);
+  $("campo").value = ""; $("btnEnviar").disabled = true; $("campo").focus();
+}
+
+/* ---------- inicio ---------- */
+$("ejemplos").append(...EJEMPLOS.map(e => {
+  const b = el("button", { class: "ej" }, el("span", { class: "cuad" }, ic(e.icono)), el("span", { class: "q", text: e.q }), el("span", { class: "tag", text: e.etiqueta }));
+  b.addEventListener("click", () => preguntar(e.q));
+  return b;
+}));
+$("campo").addEventListener("input", () => { $("btnEnviar").disabled = ocupado || !$("campo").value.trim(); });
+$("campo").addEventListener("keydown", e => { if (e.key === "Enter") preguntar($("campo").value); });
+$("btnEnviar").addEventListener("click", () => preguntar($("campo").value));
+$("btnNueva").addEventListener("click", nuevaConversacion);
+pintarRecientes(null);
+$("campo").focus();
+</script>
+</body>
+</html>
