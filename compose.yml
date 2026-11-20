@@ -85,6 +85,27 @@ services:
       ollama:
         condition: service_started
 
+  # Aplicativo de carga: una página para subir el Excel y los informes (solo los guarda en sus carpetas).
+  # Usa la misma imagen del asistente, así que no hay que construir nada más.
+  carga:
+    image: asistente-movilidad-app
+    pull_policy: never
+    container_name: asistente-movilidad-carga
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CARPETA_EXCEL: /datos/excel
+      CARPETA_INFORMES: /datos/informes
+    command: ["python", "/carga/app_carga.py"]
+    ports:
+      - "127.0.0.1:${PUERTO_CARGA:-8001}:8001"     # http://localhost:8001, solo desde este equipo
+    volumes:
+      - ${CARPETA_EXCEL:-./datos/excel}:/datos/excel          # aquí sí puede escribir
+      - ${CARPETA_INFORMES:-./datos/informes}:/datos/informes
+      - ./carga:/carga:ro
+    depends_on:
+      - app
+
 volumes:
   datos_bd:
   modelos_ia:

@@ -14,3 +14,4 @@ services:
       - ./certs:/etc/nginx/certs:ro     # certificado, llave y archivo de usuarios
     depends_on:
       - app
+      - carga

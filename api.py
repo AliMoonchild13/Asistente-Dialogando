@@ -107,9 +107,19 @@ def preguntar(p: Pregunta):
             return JSONResponse({"error": "limite", "espera": min(max(espera, 5), 600)}, status_code=429)
         print("ERROR:", mensaje)
         return JSONResponse({"error": "fallo", "detalle": mensaje.splitlines()[0][:300]}, status_code=500)
+    # Si el agente usó la misma herramienta dos veces con igual resultado, la tabla se muestra una sola vez
+    tablas, vistas = [], set()
+    for t in r["tablas"]:
+        if t.empty:
+            continue
+        tabla = _tabla_a_json(t)
+        clave = json.dumps(tabla, sort_keys=True, default=str)
+        if clave not in vistas:
+            vistas.add(clave)
+            tablas.append(tabla)
     return {
         "respuesta": r["respuesta"],
-        "tablas": [_tabla_a_json(t) for t in r["tablas"] if not t.empty],
+        "tablas": tablas,
         "fuentes": [{"archivo": f["archivo"], "seccion": f["campo"], "texto": f["contenido"]} for f in r["fuentes"]],
         "pasos": _pasos_legibles(r),
         "respaldo": bool(r.get("respaldo")),

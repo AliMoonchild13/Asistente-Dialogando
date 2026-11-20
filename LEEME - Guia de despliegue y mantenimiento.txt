@@ -102,6 +102,12 @@ Si un archivo se rechaza, la página muestra un aviso amarillo con el motivo
 y el asistente sigue funcionando con los datos anteriores. Basta con corregir
 el Excel y volver a guardarlo en la carpeta.
 
+Tambien se pueden subir desde el navegador, en la pagina de carga:
+    http://localhost:8001   (en el servidor: https://SERVIDOR/carga/)
+Esa pagina revisa el Excel antes de guardarlo y avisa si el nombre de
+un PDF no sigue el formato. Solo guarda los archivos; el asistente los
+aplica en la siguiente revision.
+
 Para revisar un Excel sin cargarlo:
     docker compose exec app python validar_excel.py "/datos/excel/NOMBRE.xlsx"
 

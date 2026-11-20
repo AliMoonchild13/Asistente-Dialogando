@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carga de información – Movilidad</title>
+<style>
+  :root { --verde:#00733c; --verde-claro:#e8f3ec; --texto:#1d2a22; --gris:#5c6b62; --borde:#d5ded8;
+          --rojo:#b42318; --rojo-claro:#fdecea; --ambar:#8a5a00; --ambar-claro:#fff6e0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--texto); background:#f4f7f5; }
+  header { background:var(--verde); color:#fff; padding:18px 24px; }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; font-size:14px; opacity:.9; }
+  main { max-width:760px; margin:24px auto; padding:0 16px; }
+  .tarjeta { background:#fff; border:1px solid var(--borde); border-radius:10px; padding:20px; margin-bottom:16px; }
+  .tarjeta h2 { margin:0 0 4px; font-size:17px; }
+  .tarjeta p.ayuda { margin:0 0 12px; color:var(--gris); font-size:14px; }
+  code { background:var(--verde-claro); padding:1px 5px; border-radius:4px; font-size:13px; }
+  input[type=file] { display:block; width:100%; padding:10px; border:1px dashed var(--borde); border-radius:8px; background:#fafcfb; }
+  button { margin-top:4px; background:var(--verde); color:#fff; border:0; border-radius:8px; padding:11px 22px; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  ul#resultados { list-style:none; padding:0; margin:0; }
+  #resultados li { padding:10px 12px; border-radius:8px; margin-bottom:8px; font-size:14px; border:1px solid var(--borde); }
+  #resultados li.ok { background:var(--verde-claro); border-color:#bcdcc8; }
+  #resultados li.aviso { background:var(--ambar-claro); border-color:#f0d9a0; color:var(--ambar); }
+  #resultados li.error { background:var(--rojo-claro); border-color:#f3c4bf; color:var(--rojo); }
+  #resultados b { display:block; color:var(--texto); }
+  progress { width:100%; height:8px; margin-top:6px; }
+  .nota { color:var(--gris); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Carga de información – Asistente de Movilidad Internacional</h1>
+  <p>Oficina Dialogando con el Mundo · Universidad de Cundinamarca</p>
+</header>
+<main>
+  <div class="tarjeta">
+    <h2>1. Excel de movilidad</h2>
+    <p class="ayuda">El libro completo y actualizado (.xlsx), con la hoja y las columnas de siempre. Reemplaza al anterior, que queda guardado como historial.</p>
+    <input type="file" id="excel" accept=".xlsx">
+  </div>
+
+  <div class="tarjeta">
+    <h2>2. Informes finales (PDF)</h2>
+    <p class="ayuda">Puede elegir varios a la vez. Nombre de cada archivo: <code>PROGRAMA PERIODO SENTIDO NOMBRE APELLIDO.pdf</code>, por ejemplo <code>EMBAJADOR 2025-1 SALIENTE NOMBRE APELLIDO.pdf</code>. Si ya existe uno con el mismo nombre, se reemplaza.</p>
+    <input type="file" id="informes" accept=".pdf" multiple>
+  </div>
+
+  <div class="tarjeta">
+    <button id="subir">Subir archivos</button>
+    <p class="nota">Los archivos se aplican solos en la próxima revisión automática del asistente (máximo unos 10 minutos). Si el Excel tiene un error, aquí se indica el motivo y no se guarda.</p>
+    <ul id="resultados"></ul>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+
+function enviar(ruta, archivo, fila) {
+  return new Promise(resolver => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", ruta + "?nombre=" + encodeURIComponent(archivo.name));
+    const barra = document.createElement("progress"); barra.max = 100; barra.value = 0; fila.appendChild(barra);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) barra.value = Math.round(e.loaded * 100 / e.total); };
+    xhr.onload = () => {
+      barra.remove();
+      let r = {}; try { r = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status === 200) {
+        const texto = r.aviso || r.mensaje || (r.reemplazo ? "Guardado (reemplazó al anterior)." : "Guardado.");
+        fila.className = r.aviso ? "aviso" : "ok"; fila.lastChild.textContent = texto;
+      } else {
+        fila.className = "error"; fila.lastChild.textContent = r.detail || ("Error " + xhr.status + ". No se guardó.");
+      }
+      resolver();
+    };
+    xhr.onerror = () => { barra.remove(); fila.className = "error"; fila.lastChild.textContent = "Sin conexión con el servidor. No se guardó."; resolver(); };
+    xhr.send(archivo);
+  });
+}
+
+function nuevaFila(nombre) {
+  const li = document.createElement("li");
+  const b = document.createElement("b"); b.textContent = nombre;
+  const s = document.createElement("span"); s.textContent = "Subiendo…";
+  li.append(b, s); $("resultados").appendChild(li); return li;
+}
+
+$("subir").addEventListener("click", async () => {
+  const excel = $("excel").files[0], informes = [...$("informes").files];
+  if (!excel && !informes.length) { alert("Elija el Excel o al menos un informe."); return; }
+  $("subir").disabled = true; $("resultados").replaceChildren();
+  if (excel) await enviar("subir/excel", excel, nuevaFila(excel.name));
+  for (const f of informes) await enviar("subir/informe", f, nuevaFila(f.name));
+  $("excel").value = ""; $("informes").value = ""; $("subir").disabled = false;
+});
+</script>
+</body>
+</html>
