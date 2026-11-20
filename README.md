@@ -3,12 +3,10 @@
 Oficina Dialogando con el Mundo – Universidad de Cundinamarca.  
 Sistema de información con base de datos PostgreSQL, Power BI y un agente de IA con RAG para consultar las cifras de movilidad y los informes finales de los participantes.
 
-## Versión v3.0: Despliegue completo en Docker, controles y Power BI
+## Versión v3.1: Despliegue en servidor Ubuntu con HTTPS
 
-- Tres contenedores: base de datos (PostgreSQL + pgvector), IA local (Ollama) y aplicación; sin archivos .bat.
-- Revisión automática cada 10 minutos, validación del Excel, copias de seguridad (respaldo.py) y protección del 20 %.
-- Modelo principal (Groq) con respaldo automático (Ollama).
-- Diagnóstico de informes sin enlazar y exportación automática para Power BI (exportar_powerbi.py).
+- Nginx como proxy inverso con HTTPS y clave de acceso (compose.server.yml, nginx/asistente.conf).
+- Dockerfile: repositorios por HTTPS y reintentos en la construcción.
 
 ## Datos y claves
 

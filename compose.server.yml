@@ -1,0 +1,16 @@
+# Capa adicional para el SERVIDOR: Nginx con HTTPS y clave de acceso delante del asistente.
+# Se activa agregando al .env:   COMPOSE_FILE=compose.yml:compose.server.yml
+# El asistente sigue escuchando solo dentro del servidor; Nginx es la única puerta desde la red.
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: asistente-movilidad-web
+    restart: unless-stopped
+    ports:
+      - "80:80"      # solo redirige a HTTPS
+      - "443:443"    # página del asistente por HTTPS
+    volumes:
+      - ./nginx/asistente.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro     # certificado, llave y archivo de usuarios
+    depends_on:
+      - app
