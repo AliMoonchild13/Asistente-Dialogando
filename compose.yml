@@ -1,6 +1,10 @@
+# Asistente de Movilidad Internacional: base de datos + modelo de IA local + aplicación.
+# Se instala UNA vez con:   docker compose up -d --build
+# Los tres servicios se reinician solos cuando Docker arranca (al encender el equipo).
 name: asistente-movilidad
 
 services:
+  # Base de datos PostgreSQL 17 con pgvector (datos de movilidad, informes y sus vectores)
   postgres:
     image: pgvector/pgvector:pg17
     container_name: asistente-movilidad-bd
@@ -10,9 +14,77 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"   # solo accesible desde este equipo
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"   # solo este equipo (pgAdmin / Power BI Desktop)
     volumes:
       - datos_bd:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Modelo de lenguaje local (Ollama). El modelo se descarga solo la primera vez y queda en un volumen.
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.9.0}
+    container_name: asistente-movilidad-ia
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: 24h        # mantiene el modelo cargado en memoria entre preguntas
+      OLLAMA_CONTEXT_LENGTH: 8192   # texto máximo por llamada; con 4096 se cortarían las instrucciones
+    volumes:
+      - modelos_ia:/root/.ollama
+    # Sin puertos publicados: solo lo usa la aplicación, por la red interna de Docker.
+    # Si el equipo tiene tarjeta gráfica NVIDIA (y Docker Desktop con WSL2), quitar los # de abajo:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # Aplicación: API (FastAPI), agente y página web
+  app:
+    build: .
+    image: asistente-movilidad-app
+    pull_policy: build              # la imagen se construye aquí, no se descarga de internet
+    container_name: asistente-movilidad-app
+    restart: unless-stopped
+    env_file: .env
+    environment:                    # rutas dentro del contenedor (no cambiar)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      CARPETA_EXCEL: /datos/excel
+      CARPETA_INFORMES: /datos/informes
+      CARPETA_SALIDA: /datos/salida
+      CARPETA_RESPALDOS: /datos/respaldos
+      CARPETA_POWERBI: /datos/powerbi
+      ARCHIVO_EXCEL: ""
+    ports:
+      - "127.0.0.1:${PUERTO_ASISTENTE:-8000}:8000"  # http://localhost:8000, solo desde este equipo
+    volumes:
+      - type: bind                  # Excel de movilidad (solo lectura)
+        source: ${CARPETA_EXCEL:-./datos/excel}
+        target: /datos/excel
+        read_only: true
+      - type: bind                  # informes en PDF (solo lectura)
+        source: ${CARPETA_INFORMES:-./datos/informes}
+        target: /datos/informes
+        read_only: true
+      - type: bind                  # registro, reporte de limpieza y opiniones
+        source: ./datos/salida
+        target: /datos/salida
+      - type: bind                  # copias de seguridad
+        source: ./datos/respaldos
+        target: /datos/respaldos
+      # archivo de datos limpios que lee Power BI (con nombres, sin documentos); la carpeta se crea sola si no existe
+      - ${CARPETA_POWERBI:-./datos/powerbi}:/datos/powerbi
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
 
 volumes:
   datos_bd:
+  modelos_ia:

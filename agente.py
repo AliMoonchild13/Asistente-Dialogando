@@ -11,6 +11,9 @@ Herramientas del agente:
 """
 import json
 import re
+import time
+
+import openai
 
 import pandas as pd
 import psycopg2
@@ -21,6 +24,8 @@ from consultas import COLUMNAS_VISTA, _cliente, _valores_validos, a_pgvector, ej
 MAX_PASOS = getattr(config, "MAX_PASOS_AGENTE", 5)          # vueltas máximas de razonamiento
 FRAGMENTOS = getattr(config, "FRAGMENTOS_AGENTE", 4)        # fragmentos por búsqueda
 MAX_FILAS_AL_MODELO = 30
+MAX_CARACTERES_FRAGMENTO = 900
+POR_PROGRAMA = 2                    # sin filtro de programa: fragmentos de CADA programa (búsqueda balanceada)      # al modelo le llega un extracto; el usuario ve el fragmento completo en las fuentes
 
 HERRAMIENTAS = [
     {"type": "function", "function": {
@@ -68,10 +73,19 @@ Cómo trabajar:
 - Para saber qué informes hay o cuántos se entregaron usa listar_informes. El listado completo ya se le muestra
   al usuario en pantalla: no lo repitas, solo resume las cifras.
 - Puedes llamar herramientas varias veces. Si una consulta falla o no trae resultados, corrígela e inténtalo de nuevo.
+- buscar_en_informes SIN filtro de programa ya devuelve fragmentos de CADA programa que tiene informes: úsala así
+  cuando pregunten "por programa" o comparen programas. Usa el filtro de programa solo si preguntan por uno.
+- Si la herramienta devolvió fragmentos, ÚSALOS para responder (aunque sean pocos): no digas que no hay
+  información. Un programa que no aparece en los resultados es porque no tiene informes cargados.
+- Si piden una tabla, responde con una tabla en formato markdown.
 - Responde SOLO con lo que devuelvan las herramientas. Si no hay información suficiente, dilo; no inventes.
 - Cuando uses fragmentos de informes, cita su número entre corchetes, por ejemplo [1] o [2][3].
 - Responde en español, claro y breve. No menciones SQL, tablas ni nombres de herramientas en la respuesta.
-- Si te saludan o preguntan algo ajeno a la movilidad internacional, responde brevemente sin usar herramientas.
+- Si te saludan, saluda y explica en una o dos frases qué puedes consultar, sin usar herramientas.
+- Si preguntan algo AJENO a la movilidad internacional de la oficina (cultura general, otros temas, tareas,
+  opiniones), NO lo respondas aunque sepas la respuesta: di amablemente que solo puedes ayudar con la información
+  de movilidad internacional y de los informes de la oficina, y sugiere un ejemplo de pregunta. No uses
+  conocimiento general para responder.
 
 Base de datos para consultar_base_movilidad:
 {columnas}
@@ -87,6 +101,13 @@ Reglas de SQL:
 
 
 # ------------------------------------------------------------------ herramientas
+def _recortar(texto, n=MAX_CARACTERES_FRAGMENTO):
+    """Menos texto por fragmento = menos tokens por pregunta (el plan gratuito limita los tokens por minuto)."""
+    if len(texto) <= n:
+        return texto
+    corte = texto.rfind(" ", 0, n)
+    return texto[:corte if corte > 0 else n] + "…"
+
 def _buscar_en_informes(estado, consulta, programa=None, sentido=None, pais=None,
                         periodo_desde=None, periodo_hasta=None):
     filtros, params = [], []
@@ -98,16 +119,27 @@ def _buscar_en_informes(estado, consulta, programa=None, sentido=None, pais=None
             params.append(valor)
     donde = ("WHERE " + " AND ".join(filtros)) if filtros else ""
     v = a_pgvector(vectorizar([consulta], es_pregunta=True)[0])
-    sql = f"""
-        SELECT f.id, i.archivo, i.programa_movilidad, i.periodo, i.sentido, i.universidad, i.pais,
-               f.campo, f.contenido
-        FROM movilidad.informe_fragmento f JOIN movilidad.informe i ON i.id = f.id_informe
-        {donde}
-        ORDER BY f.embedding <=> %s::vector LIMIT %s"""
+    columnas = """f.id, i.archivo, i.programa_movilidad, i.periodo, i.sentido, i.universidad, i.pais,
+               f.campo, f.contenido"""
+    desde = "FROM movilidad.informe_fragmento f JOIN movilidad.informe i ON i.id = f.id_informe"
+    if programa:            # un solo programa: los fragmentos más parecidos
+        sql = f"SELECT {columnas} {desde} {donde} ORDER BY f.embedding <=> %s::vector LIMIT %s"
+        valores = [*params, v, FRAGMENTOS]
+    else:                   # sin programa: los más parecidos DE CADA programa, para no dejar ninguno por fuera
+        sql = f"""
+            SELECT id, archivo, programa_movilidad, periodo, sentido, universidad, pais, campo, contenido
+            FROM (SELECT {columnas}, f.embedding <=> %s::vector AS distancia,
+                         ROW_NUMBER() OVER (PARTITION BY i.programa_movilidad
+                                            ORDER BY f.embedding <=> %s::vector) AS puesto
+                  {desde} {donde}) x
+            WHERE puesto <= %s ORDER BY distancia"""
+        valores = [v, v, *params, POR_PROGRAMA]
     with psycopg2.connect(**config.PG) as con, con.cursor() as cur:
-        cur.execute(sql, [*params, v, FRAGMENTOS])
+        cur.execute(sql, valores)
         filas = cur.fetchall()
     if not filas:
+        if programa:
+            return f"No hay informes cargados de {programa} con esos filtros."
         return "No se encontraron informes con esos filtros. Prueba con menos filtros."
 
     partes = []
@@ -117,7 +149,7 @@ def _buscar_en_informes(estado, consulta, programa=None, sentido=None, pais=None
             estado["fuentes"].append({"id": fid, "archivo": archivo, "campo": campo, "contenido": contenido})
             ya = len(estado["fuentes"])
         partes.append(f"[{ya}] Informe {prog} {periodo} ({sent}), {univ or 'universidad no indicada'}, "
-                      f"{pais_ or ''} — Campo: {campo}\n{contenido}")
+                      f"{pais_ or ''} — Campo: {campo}\n{_recortar(contenido)}")
     return "\n\n".join(partes)
 
 
@@ -172,17 +204,63 @@ NOMBRES = {"listar_informes": "Consultó el listado de informes",
 
 
 # ------------------------------------------------------------------ ciclo del agente
-def _llamar_modelo(mensajes, con_herramientas=True):
-    extra = dict(tools=HERRAMIENTAS, tool_choice="auto") if con_herramientas else {}
+PAUSA_PRINCIPAL = 300          # si el modelo principal falla, se usa el respaldo durante 5 minutos
+_principal_en_pausa_hasta = 0.0
+# Fallas del SERVICIO (no de la pregunta): sin internet, demora, límite, clave inválida, caído, modelo retirado
+FALLAS_DEL_SERVICIO = (openai.APIConnectionError, openai.RateLimitError, openai.AuthenticationError,
+                       openai.PermissionDeniedError, openai.NotFoundError, openai.InternalServerError)
+
+
+def _espera_por_minuto(error):
+    """Si el límite alcanzado es POR MINUTO, devuelve cuántos segundos esperar; si es diario u otro, None."""
+    texto = str(error)
+    if not re.search(r"per minute|\(TPM\)|\(RPM\)", texto, re.I):
+        return None
+    m = re.search(r"try again in (?:(\d+)m)?([\d.]+)s", texto)
+    segundos = (int(m.group(1) or 0) * 60 + float(m.group(2))) if m else 10
+    return segundos if segundos <= 30 else None
+
+
+def _pedir(llm, mensajes, extra):
     for intento in range(2):
         try:
-            r = _cliente().chat.completions.create(model=config.LLM["modelo"], temperature=0.1,
-                                                   messages=mensajes, **extra)
+            inicio = time.time()
+            r = _cliente(llm).chat.completions.create(model=llm["modelo"], temperature=0.1,
+                                                      messages=mensajes, **extra)
+            uso = getattr(r, "usage", None)
+            print(f"[IA] {llm['modelo']}: {time.time() - inicio:.1f} s"
+                  + (f", {uso.total_tokens} tokens" if uso else ""), flush=True)
             return r.choices[0].message
         except Exception as e:
             # A veces el modelo arma mal la llamada a una herramienta: se reintenta una vez
             if "tool_use_failed" not in str(e) or intento == 1:
                 raise
+
+
+def _llamar_modelo(mensajes, con_herramientas=True, estado=None):
+    """Usa el modelo principal; si el servicio falla y hay respaldo configurado, responde con el respaldo."""
+    global _principal_en_pausa_hasta
+    extra = dict(tools=HERRAMIENTAS, tool_choice="auto") if con_herramientas else {}
+    estado = estado if estado is not None else {}
+    if not (config.HAY_RESPALDO and (estado.get("respaldo") or time.time() < _principal_en_pausa_hasta)):
+        try:
+            try:
+                return _pedir(config.LLM, mensajes, extra)
+            except openai.RateLimitError as e:
+                espera = _espera_por_minuto(e)
+                if espera is None:                      # límite diario: no sirve esperar
+                    raise
+                print(f"[IA] Límite por minuto del servicio: se espera {espera:.0f} s y se reintenta.", flush=True)
+                time.sleep(espera + 0.5)
+                return _pedir(config.LLM, mensajes, extra)
+        except FALLAS_DEL_SERVICIO as e:
+            if not config.HAY_RESPALDO:
+                raise
+            _principal_en_pausa_hasta = time.time() + PAUSA_PRINCIPAL
+            print(f"[AVISO] El modelo principal no respondió ({type(e).__name__}); se usa el respaldo "
+                  f"{config.LLM_RESPALDO['modelo']} durante {PAUSA_PRINCIPAL // 60} minutos.", flush=True)
+    estado["respaldo"] = True
+    return _pedir(config.LLM_RESPALDO, mensajes, extra)
 
 
 def responder(pregunta, historial=None):
@@ -196,7 +274,7 @@ def responder(pregunta, historial=None):
     mensajes.append({"role": "user", "content": pregunta})
 
     for _ in range(MAX_PASOS):
-        msg = _llamar_modelo(mensajes)
+        msg = _llamar_modelo(mensajes, estado=estado)
         if not msg.tool_calls:                          # el agente decidió que ya puede responder
             return dict(estado, respuesta=(msg.content or "").strip())
 
@@ -217,5 +295,5 @@ def responder(pregunta, historial=None):
 
     # Se acabaron los pasos: se le pide responder con lo que ya tiene
     mensajes.append({"role": "user", "content": "Responde ahora con la información que ya obtuviste."})
-    msg = _llamar_modelo(mensajes, con_herramientas=False)
+    msg = _llamar_modelo(mensajes, con_herramientas=False, estado=estado)
     return dict(estado, respuesta=(msg.content or "").strip())

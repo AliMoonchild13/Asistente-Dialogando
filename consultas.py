@@ -28,9 +28,18 @@ def a_pgvector(v):
 
 
 # ------------------------------------------------------------------ LLM
-@lru_cache(maxsize=1)
-def _cliente():
-    return OpenAI(base_url=config.LLM["base_url"], api_key=config.LLM["api_key"])
+def _cliente(llm=None):
+    llm = llm or config.LLM
+    return _cliente_para(llm["base_url"], llm["api_key"])
+
+
+@lru_cache(maxsize=2)                       # un cliente para el principal y otro para el respaldo
+def _cliente_para(base_url, api_key):
+    # Un modelo externo debe responder rápido (si no, se pasa al respaldo); uno local puede tardar más
+    espera = 600 if config._es_ollama(base_url) else (60 if config.HAY_RESPALDO else 300)
+    # Con respaldo, los reintentos del servicio externo los decide el agente (evita llamadas repetidas ocultas)
+    reintentos = 0 if config.HAY_RESPALDO and not config._es_ollama(base_url) else 1
+    return OpenAI(base_url=base_url, api_key=api_key, timeout=espera, max_retries=reintentos)
 
 
 def preguntar_llm(sistema, usuario, temperatura=0.1):

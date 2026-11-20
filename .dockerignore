@@ -1,0 +1,14 @@
+# Nada de configuración ni datos dentro de la imagen: llegan por .env y por las carpetas montadas
+.env
+.env.example
+datos/
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.dump
+__pycache__/
+*.pyc
+.git/
+*.url
+LEEME*

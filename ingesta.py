@@ -87,6 +87,10 @@ def main(carpeta):
     with psycopg2.connect(**config.PG) as con, con.cursor() as cur:
         cur.execute("SELECT ruta, hash_sha256 FROM movilidad.informe")
         en_base = dict(cur.fetchall())
+        if en_base and not pdfs:
+            # Carpeta vacía o sin sincronizar: no se borran los informes que ya estaban cargados
+            raise RuntimeError(f"La carpeta de informes está vacía ({carpeta}) y la base tiene {len(en_base)} "
+                               "informes. No se borró nada. Revisa que la carpeta esté bien sincronizada.")
         nuevos = omitidos = errores = 0
 
         for ruta in pdfs:
@@ -109,12 +113,26 @@ def main(carpeta):
         cur.execute("DELETE FROM movilidad.informe WHERE NOT (ruta = ANY(%s))", (rutas_actuales,))
         borrados = cur.rowcount
 
+        # Reintenta enlazar los informes que aún no tienen registro (por ejemplo, si se corrigió el Excel)
+        cur.execute("SELECT id, archivo FROM movilidad.informe WHERE id_registro_movilidad IS NULL")
+        reenlazados = 0
+        for id_informe, archivo in cur.fetchall():
+            id_registro = buscar_registro(cur, datos_del_nombre(archivo))
+            if id_registro:
+                cur.execute("UPDATE movilidad.informe SET id_registro_movilidad = %s WHERE id = %s",
+                            (id_registro, id_informe))
+                reenlazados += 1
+        if reenlazados:
+            print(f"Informes enlazados ahora con su registro: {reenlazados}")
+
         cur.execute("SELECT COUNT(*), COUNT(id_registro_movilidad) FROM movilidad.informe")
         total, enlazados = cur.fetchone()
 
     print(f"\nNuevos o actualizados: {nuevos} | Sin cambios: {omitidos} | Con error: {errores} | "
           f"Eliminados: {borrados}")
     print(f"Informes en la base: {total} ({enlazados} enlazados con su registro de movilidad)")
+    return {"nuevos": nuevos, "sin_cambios": omitidos, "errores": errores, "eliminados": borrados,
+            "total": total, "enlazados": enlazados}
 
 
 if __name__ == "__main__":

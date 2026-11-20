@@ -3,11 +3,12 @@
 Oficina Dialogando con el Mundo – Universidad de Cundinamarca.  
 Sistema de información con base de datos PostgreSQL, Power BI y un agente de IA con RAG para consultar las cifras de movilidad y los informes finales de los participantes.
 
-## Versión v2.2: Arranque y actualización del Excel
+## Versión v3.0: Despliegue completo en Docker, controles y Power BI
 
-- Script de arranque (iniciar.py).
-- Actualización incremental del Excel (actualizar_excel.py): nuevos, corregidos y quitados.
-- Plantilla .env.example y .gitignore.
+- Tres contenedores: base de datos (PostgreSQL + pgvector), IA local (Ollama) y aplicación; sin archivos .bat.
+- Revisión automática cada 10 minutos, validación del Excel, copias de seguridad (respaldo.py) y protección del 20 %.
+- Modelo principal (Groq) con respaldo automático (Ollama).
+- Diagnóstico de informes sin enlazar y exportación automática para Power BI (exportar_powerbi.py).
 
 ## Datos y claves
 

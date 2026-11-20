@@ -205,6 +205,8 @@ def main(ruta, simular=False):
                 print("SIMULACIÓN: no se guardó ningún cambio.")
             else:
                 print("Base actualizada.")
+            return {"registros": len(df), "nuevos": nuevos, "corregidos": actualizados,
+                    "quitados": len(quitar), "personas": personas}
     finally:
         con.close()
 
@@ -212,7 +214,10 @@ def main(ruta, simular=False):
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     config = getattr(carga, "config", None)            # paquete instalable: ruta tomada del archivo .env
-    ruta = args[0] if args else getattr(config, "ARCHIVO_EXCEL", None)
+    ruta = args[0] if args else None
+    if not ruta and config is not None:                 # sin ruta: el Excel más reciente de la carpeta
+        from validar_excel import buscar_excel
+        ruta = str(buscar_excel(config.ARCHIVO_EXCEL or config.CARPETA_EXCEL)[0])
     if not ruta:
         sys.exit('Uso: python actualizar_excel.py "ruta del Excel.xlsx" [--simular]')
     try:

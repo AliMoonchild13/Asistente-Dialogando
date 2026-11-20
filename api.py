@@ -23,11 +23,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import agente
+import config
 import consultas
 
 CARPETA = Path(__file__).parent
 WEB = CARPETA / "web"
-ARCHIVO_OPINIONES = CARPETA / "opiniones.csv"
+SALIDA = Path(config.CARPETA_SALIDA)
+SALIDA.mkdir(parents=True, exist_ok=True)
+ARCHIVO_OPINIONES = SALIDA / "opiniones.csv"
 PUERTO = 8000
 
 app = FastAPI(title="Asistente de Movilidad Internacional", docs_url=None, redoc_url=None)
@@ -109,6 +112,7 @@ def preguntar(p: Pregunta):
         "tablas": [_tabla_a_json(t) for t in r["tablas"] if not t.empty],
         "fuentes": [{"archivo": f["archivo"], "seccion": f["campo"], "texto": f["contenido"]} for f in r["fuentes"]],
         "pasos": _pasos_legibles(r),
+        "respaldo": bool(r.get("respaldo")),
     }
 
 
@@ -136,6 +140,15 @@ def opinion(o: Opinion):
             w.writerow(["fecha", "valoracion", "pregunta", "respuesta"])
         w.writerow([f"{datetime.now():%Y-%m-%d %H:%M}", o.valor, _texto_seguro(o.pregunta), _texto_seguro(o.respuesta[:2000])])
     return {"ok": True}
+
+
+@app.get("/api/estado")
+def estado():
+    """Resultado de la última revisión del Excel y de los informes (para mostrar avisos en la página)."""
+    try:
+        return json.loads((SALIDA / "estado_actualizacion.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 @app.get("/")

@@ -1,0 +1,2 @@
+Aqui se guarda movilidad_powerbi.xlsx: los datos limpios de movilidad (con nombres, sin documentos; no compartir fuera de la oficina) que lee Power BI.
+Se actualiza solo despues de cada actualizacion del Excel.

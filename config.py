@@ -32,7 +32,7 @@ def _valor(nombre, defecto=""):
 
 # --- PostgreSQL (los mismos valores que usa Docker al crear la base) ---
 PG = dict(
-    host="localhost",
+    host=_valor("POSTGRES_HOST", "localhost"),      # dentro de Docker es "postgres"
     port=int(_valor("POSTGRES_PORT", "5433")),
     dbname=_valor("POSTGRES_DB", "movilidad_udec"),
     user=_valor("POSTGRES_USER", "postgres"),
@@ -43,10 +43,27 @@ PG = dict(
 PG_LECTOR = dict(PG, user="rag_lector", password=_valor("PG_LECTOR_PASSWORD", "cambiar_esta_clave"))
 
 # --- Archivos de datos (se aceptan rutas completas, por ejemplo una carpeta de OneDrive) ---
-ARCHIVO_EXCEL = _valor("ARCHIVO_EXCEL", "BD_UNION_MOVILIDAD_LIMPIA_con_fechas.xlsx")
-if not os.path.isabs(ARCHIVO_EXCEL):
+# Dentro de Docker estas rutas las fija compose.yml (/datos/...); fuera de Docker se usan las de aquí.
+EN_DOCKER = _valor("EN_DOCKER") == "1"
+
+
+def _carpeta(nombre, defecto):
+    ruta = _valor(nombre) or str(RAIZ / defecto)
+    return ruta if os.path.isabs(ruta) else str(RAIZ / ruta)
+
+
+# Excel de movilidad: se toma el Excel más reciente de esta carpeta (no importa el nombre).
+# Compatibilidad: si ARCHIVO_EXCEL apunta a un archivo, se usa ese.
+CARPETA_EXCEL = _carpeta("CARPETA_EXCEL", "datos/excel")
+ARCHIVO_EXCEL = _valor("ARCHIVO_EXCEL")
+if ARCHIVO_EXCEL and not os.path.isabs(ARCHIVO_EXCEL):
     ARCHIVO_EXCEL = str(RAIZ / ARCHIVO_EXCEL)
-CARPETA_INFORMES = _valor("CARPETA_INFORMES") or str(RAIZ / "informes")
+CARPETA_INFORMES = _carpeta("CARPETA_INFORMES", "datos/informes")
+CARPETA_SALIDA = _carpeta("CARPETA_SALIDA", "datos/salida")          # reportes, opiniones, registro
+CARPETA_RESPALDOS = _carpeta("CARPETA_RESPALDOS", "datos/respaldos")  # copias de seguridad de la base
+CARPETA_POWERBI = _carpeta("CARPETA_POWERBI", "datos/powerbi")        # archivo que lee Power BI
+MAX_RESPALDOS = int(_valor("MAX_RESPALDOS", "15"))                     # se conservan los más recientes
+INTERVALO_REVISION_MIN = int(_valor("INTERVALO_REVISION_MIN", "10"))   # cada cuánto se buscan cambios
 
 # --- Embeddings (se calculan en este equipo; el texto de los informes no sale) ---
 MODELO_EMBEDDINGS = _valor("MODELO_EMBEDDINGS", "intfloat/multilingual-e5-base")
@@ -54,9 +71,30 @@ DIMENSION_EMBEDDINGS = 768      # debe coincidir con vector(768) en 03_esquema_r
 
 # --- Modelo de lenguaje (cualquier servicio compatible con el formato de OpenAI) ---
 LLM = dict(
-    base_url=_valor("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
+    base_url=_valor("LLM_BASE_URL", "http://ollama:11434/v1"),
     api_key=_valor("LLM_API_KEY") or _valor("GROQ_API_KEY", "FALTA_LA_CLAVE"),
-    modelo=_valor("LLM_MODELO", "openai/gpt-oss-120b"),
+    modelo=_valor("LLM_MODELO", "llama3.1:8b"),
 )
+
+
+def _es_ollama(url):
+    return bool(url) and (":11434" in url or "ollama" in url)
+
+
+# Ollama (modelo local) no usa clave
+LLM_ES_OLLAMA = _es_ollama(LLM["base_url"])
+if LLM_ES_OLLAMA and LLM["api_key"] in ("", "FALTA_LA_CLAVE", "PEGAR_AQUI_LA_CLAVE"):
+    LLM["api_key"] = "ollama"
+
+# --- Modelo de respaldo: se usa solo si el principal falla (sin internet, límite alcanzado, caído) ---
+LLM_RESPALDO = dict(
+    base_url=_valor("LLM_RESPALDO_BASE_URL"),
+    api_key=_valor("LLM_RESPALDO_API_KEY") or "ollama",
+    modelo=_valor("LLM_RESPALDO_MODELO"),
+)
+HAY_RESPALDO = bool(LLM_RESPALDO["base_url"] and LLM_RESPALDO["modelo"])
+# Modelos de Ollama que hay que tener descargados (principal y/o respaldo)
+MODELOS_OLLAMA = [(c["base_url"], c["modelo"]) for c in (LLM, LLM_RESPALDO)
+                  if c["modelo"] and _es_ollama(c["base_url"])]
 
 FRAGMENTOS_POR_PREGUNTA = 6

@@ -12,7 +12,7 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{font-family:Montserrat,'Helvetica Neue',Arial,sans-serif;color:#4D4D4D;-webkit-font-smoothing:antialiased;background:#FFFFFF}
-button,input{font-family:inherit}
+button,input,textarea{font-family:inherit}
 a{color:#007B3E}a:hover{color:#00482B}
 button:focus-visible,input:focus-visible{outline:2px solid #007B3E;outline-offset:2px}
 @keyframes ucSpin{to{transform:rotate(360deg)}}
@@ -107,6 +107,8 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFFFF}
 .texto table{border-collapse:collapse;width:100%;font-size:15px;line-height:22px}
 .texto th{background:#F4F5F3;font-weight:600;font-size:13px;text-align:left;padding:8px 12px}
 .texto td{padding:8px 12px;border-top:1px solid #EDEFEC}
+.texto th,.texto td{overflow-wrap:normal;word-break:normal;vertical-align:top}   /* no partir palabras dentro de las celdas */
+.texto td:first-child{min-width:9em}
 .cita{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 5px;margin:0 1px;border-radius:4px;border:0;background:#E6F2EB;color:#00482B;font-size:12px;font-weight:700;line-height:1;vertical-align:2px;cursor:pointer}
 .cita:hover{background:#007B3E;color:#FFFFFF}
 
@@ -188,16 +190,25 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFFFF}
 
 .pie{flex:none;border-top:1px solid #E3E6E2;background:#FFFFFF;padding:16px 32px 12px}
 .pie-col{max-width:800px;margin:0 auto;padding:0 32px;display:flex;flex-direction:column;gap:8px}
-.entrada{display:flex;align-items:center;gap:8px;border:1px solid #BFC5BE;border-radius:12px;padding:6px 6px 6px 16px;background:#FFFFFF}
+.entrada{display:flex;align-items:flex-end;gap:8px;border:1px solid #BFC5BE;border-radius:12px;padding:6px 6px 6px 16px;background:#FFFFFF}
 .entrada:focus-within{border-color:#007B3E}
 .entrada.ocupado{border-color:#E3E6E2;background:#F4F5F3}
-.entrada input{flex:1;min-width:0;height:40px;border:0;outline:none;background:transparent;font-size:16px;color:#00482B}
-.entrada input::placeholder{color:#767676}
+.entrada textarea{flex:1;min-width:0;height:40px;max-height:168px;padding:8px 0;border:0;outline:none;background:transparent;font-size:16px;line-height:24px;color:#00482B;resize:none;overflow-y:hidden}
+.entrada textarea::placeholder{color:#767676}
 .btn-enviar{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;border:0;border-radius:8px;background:#007B3E;color:#FFFFFF;cursor:pointer}
 .btn-enviar:disabled{background:#A9C9B6;cursor:not-allowed}
 .btn-enviar .ic{font-size:22px}
+.btn-enviar.detener{background:#00482B}
+.cancelado{display:flex;gap:8px;align-items:center;font-size:14px;line-height:22px;color:#767676;font-style:italic}
+.cancelado .ic{font-size:18px;font-style:normal}
 .nota{margin:0;font-size:12px;line-height:18px;color:#5E5E5E;text-align:center;text-wrap:pretty}
 
+.nota-respaldo{display:flex;gap:8px;align-items:center;font-size:13px;line-height:20px;color:#4D4D4D;font-style:italic}
+.nota-respaldo .ic{font-size:18px;color:#DAAA00;font-style:normal}
+.aviso-datos{display:flex;gap:12px;align-items:flex-start;padding:12px 32px;background:#FFF8D6;border-bottom:1px solid #DAAA00;color:#00482B;font-size:14px;line-height:22px}
+.aviso-datos .ic{color:#DAAA00;font-size:20px}
+.aviso-datos b{font-weight:600}
+@media (max-width:900px){.aviso-datos{padding:12px 16px}}
 @media (max-width:900px){aside{display:none}.ejemplos{grid-template-columns:1fr}.ej{min-height:0}.col{padding:24px 16px}.pie{padding:12px 16px}.pie-col{padding:0}header{padding:0 16px;gap:16px}.barra-f{grid-template-columns:96px minmax(0,1fr)}}
 </style>
 </head>
@@ -212,6 +223,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFFFF}
     <div class="sub">Oficina Dialogando con el Mundo</div>
   </div>
 </header>
+<div class="aviso-datos oculto" id="avisoDatos" role="status"></div>
 
 <div class="cuerpo">
   <aside>
@@ -243,7 +255,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFFFF}
     <div class="pie">
       <div class="pie-col">
         <div class="entrada" id="entrada">
-          <input id="campo" placeholder="Escribe tu pregunta" aria-label="Escribe tu pregunta" autocomplete="off" maxlength="500">
+          <textarea id="campo" rows="1" placeholder="Escribe tu pregunta" aria-label="Escribe tu pregunta" autocomplete="off" maxlength="500"></textarea>
           <button class="btn-enviar" id="btnEnviar" aria-label="Enviar pregunta" disabled><span class="ic" aria-hidden="true">arrow_upward</span></button>
         </div>
         <p class="nota">Las respuestas se generan a partir de los datos e informes de la oficina. Verifica las cifras antes de usarlas en documentos oficiales.</p>
@@ -265,6 +277,7 @@ const MAX_FILAS_VISIBLES = 100, MAX_BARRAS = 15;
 const $ = id => document.getElementById(id);
 const turnos = [];            // {id, pregunta, respuesta, nodo}
 let ocupado = false;
+let control = null;                    // permite cancelar la pregunta en curso
 
 /* ---------- utilidades de DOM ---------- */
 function el(tag, attrs, ...hijos) {
@@ -489,6 +502,11 @@ function pintarLimite(t, segundos) {
       el("div", { class: "t2", text: "Espera un momento e intenta de nuevo." }),
       el("div", { class: "acc" }, btn, cuenta))));
 }
+function pintarCancelado(t) {
+  const btn = el("button", { class: "btn-txt" }, ic("refresh"), "Preguntar de nuevo");
+  btn.addEventListener("click", () => consultar(t));
+  t.contenido.replaceChildren(el("div", { class: "cancelado", role: "status" }, ic("block"), "Cancelaste esta pregunta.", btn));
+}
 function pintarError(t, detalle) {
   const btn = el("button", { class: "btn-sec" }, ic("refresh"), "Intentar de nuevo");
   btn.addEventListener("click", () => consultar(t));
@@ -502,6 +520,8 @@ function pintarRespuesta(t, r) {
   const texto = el("div", { class: "texto" });
   texto.innerHTML = markdown(r.respuesta || "No encontré información para responder esta pregunta.", r.fuentes.length);
   const partes = [texto];
+  if (r.respaldo) partes.push(el("div", { class: "nota-respaldo" }, ic("sync_alt"),
+    "Respondido con el modelo de respaldo (local), porque el servicio principal no estaba disponible. Puede tardar más."));
   r.tablas.forEach(x => partes.push(nodoTabla(x)));
 
   let cajaFuentes = null;
@@ -562,7 +582,12 @@ function fijarOcupado(v) {
   ocupado = v;
   $("campo").disabled = v;
   $("entrada").classList.toggle("ocupado", v);
-  $("btnEnviar").disabled = v || !$("campo").value.trim();
+  const b = $("btnEnviar");               // mientras responde, el botón de enviar se vuelve "Detener"
+  b.classList.toggle("detener", v);
+  b.setAttribute("aria-label", v ? "Detener la respuesta" : "Enviar pregunta");
+  b.title = v ? "Detener (Esc)" : "";
+  b.replaceChildren(ic(v ? "stop" : "arrow_upward"));
+  b.disabled = !v && !$("campo").value.trim();
   if (!v) $("campo").focus();
 }
 function pintarRecientes() {
@@ -606,8 +631,9 @@ async function consultar(t) {
   $("scroll").scrollTo({ top: $("scroll").scrollHeight, behavior: "smooth" });
   const historial = turnos.filter(x => x !== t && x.respuesta).slice(-2).map(x => [x.pregunta, x.respuesta]);
   try {
+    control = new AbortController();
     const r = await fetch("/api/preguntar", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pregunta: t.pregunta, historial }) });
+      body: JSON.stringify({ pregunta: t.pregunta, historial }), signal: control.signal });
     const datos = await r.json().catch(() => ({}));
     if (r.status === 429) pintarLimite(t, datos.espera || 60);
     else if (!r.ok) pintarError(t, null);
@@ -618,15 +644,22 @@ async function consultar(t) {
       conversaciones = [actual, ...conversaciones.filter(c => c !== actual)];   // la usada sube al inicio
       guardar(); pintarRecientes();
     }
-  } catch { pintarError(t, "No hay conexión con el asistente. Verifica que el programa siga abierto en el equipo."); }
+  } catch (e) {
+    if (e.name === "AbortError") {        // cancelada: la pregunta vuelve al cuadro para poder editarla
+      pintarCancelado(t);
+      if (!$("campo").value.trim()) { $("campo").value = t.pregunta; }
+    } else pintarError(t, "No hay conexión con el asistente. Verifica que el programa siga abierto en el equipo.");
+  }
+  control = null;
   fijarOcupado(false);
+  ajustarCampo();
   t.nodo.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function preguntar(texto) {
   texto = texto.trim();
   if (!texto || ocupado) return;
   $("vacio").classList.add("oculto");
-  $("campo").value = "";
+  $("campo").value = ""; ajustarCampo();
   consultar(nodoTurno(texto));
 }
 function nuevaConversacion() {
@@ -635,7 +668,7 @@ function nuevaConversacion() {
   actual = null;                       // la anterior sigue guardada en "Recientes"
   $("vacio").classList.remove("oculto");
   pintarRecientes();
-  $("campo").value = ""; $("btnEnviar").disabled = true; $("campo").focus();
+  $("campo").value = ""; ajustarCampo(); $("btnEnviar").disabled = true; $("campo").focus();
 }
 let relojBorrar = null;
 function borrarHistorial() {             // dos clics, sin ventana emergente
@@ -655,13 +688,37 @@ $("ejemplos").append(...EJEMPLOS.map(e => {
   b.addEventListener("click", () => preguntar(e.q));
   return b;
 }));
-$("campo").addEventListener("input", () => { $("btnEnviar").disabled = ocupado || !$("campo").value.trim(); });
-$("campo").addEventListener("keydown", e => { if (e.key === "Enter") preguntar($("campo").value); });
-$("btnEnviar").addEventListener("click", () => preguntar($("campo").value));
+function ajustarCampo() {           // el cuadro crece con el texto (hasta 6 líneas) y luego muestra barra
+  const c = $("campo");
+  c.style.height = "auto";
+  c.style.height = Math.min(c.scrollHeight, 168) + "px";
+  c.style.overflowY = c.scrollHeight > 168 ? "auto" : "hidden";
+}
+$("campo").addEventListener("input", () => { ajustarCampo(); $("btnEnviar").disabled = ocupado || !$("campo").value.trim(); });
+$("campo").addEventListener("keydown", e => {   // Enter envía; Shift + Enter hace un salto de línea
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); preguntar($("campo").value); }
+});
+$("btnEnviar").addEventListener("click", () => { if (ocupado) { if (control) control.abort(); } else preguntar($("campo").value); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && ocupado && control) control.abort(); });
 $("btnNueva").addEventListener("click", nuevaConversacion);
 $("btnBorrar").addEventListener("click", borrarHistorial);
+async function revisarEstado() {     // avisa si la última actualización del Excel o de los informes falló
+  try {
+    const r = await fetch("/api/estado"); if (!r.ok) return;
+    const e = await r.json();
+    const fallos = [["excel", "El Excel de movilidad no se cargó"], ["informes", "Los informes no se actualizaron"]]
+      .filter(([k]) => e[k] && e[k].ok === false);
+    const caja = $("avisoDatos");
+    caja.replaceChildren(...(fallos.length ? [ic("warning"), el("div", {},
+      ...fallos.map(([k, t]) => el("div", {}, el("b", { text: `${t} (${e[k].fecha}). ` }), e[k].mensaje)),
+      el("div", { text: "El asistente sigue funcionando con los datos anteriores." }))] : []));
+    caja.classList.toggle("oculto", !fallos.length);
+  } catch { }
+}
 cargarGuardadas();
 pintarRecientes();
+revisarEstado();
+setInterval(revisarEstado, 5 * 60 * 1000);
 $("campo").focus();
 </script>
 </body>

@@ -1,0 +1,248 @@
+﻿ASISTENTE DE MOVILIDAD INTERNACIONAL
+Oficina Dialogando con el Mundo - Universidad de Cundinamarca
+Guía de despliegue, uso y mantenimiento
+======================================================================
+
+CÓMO FUNCIONA
+----------------------------------------------------------------------
+Todo corre en Docker, en tres contenedores que se encienden SOLOS cuando
+arranca Docker Desktop (al iniciar sesión en el equipo):
+
+  asistente-movilidad-bd    Base de datos PostgreSQL 17 + pgvector
+  asistente-movilidad-ia    Modelo de lenguaje local (Ollama, llama3.1:8b)
+  asistente-movilidad-app   Aplicación: agente, API y página web
+
+No se instala Python ni ningún otro programa en Windows: solo Docker Desktop.
+La página se abre en el navegador:  http://localhost:8000
+(acceso directo: "Asistente de Movilidad.url"). Solo es accesible desde
+este equipo; no queda publicada en la red.
+
+Carpetas de datos (dentro de esta carpeta, o las de OneDrive si se configuran):
+  datos\excel        Excel de movilidad. Se usa el .xlsx MÁS RECIENTE; no importa el nombre.
+  datos\informes     Informes finales en PDF (se permiten subcarpetas).
+  datos\salida       Registro de actualizaciones, reporte de limpieza y opiniones.
+  datos\respaldos    Copias de seguridad automáticas de la base.
+  datos\powerbi      Datos limpios para Power BI (movilidad_powerbi.xlsx, sin documentos).
+
+
+1. REQUISITOS DEL EQUIPO
+----------------------------------------------------------------------
+- Windows 10/11 de 64 bits con virtualización activada (WSL 2).
+- 16 GB de RAM (el modelo local usa unos 6 GB). Con 8 GB solo funciona
+  usando un servicio de IA externo (ver punto 7).
+- 25 GB libres en disco (imágenes, modelo de IA y datos).
+- Internet SOLO durante la instalación (descarga de imágenes y modelos).
+  Con el modelo local, el uso diario no necesita internet.
+- Tarjeta gráfica: opcional. Sin ella, cada respuesta tarda más
+  (de 20 segundos a 1-2 minutos). Ver punto 9 para activarla.
+
+
+2. INSTALACIÓN (Oficina de Sistemas, una sola vez)
+----------------------------------------------------------------------
+1. Instalar Docker Desktop (https://www.docker.com/products/docker-desktop).
+   En Settings > General marcar:
+     "Start Docker Desktop when you sign in to your computer"
+   Esto es lo que hace que el asistente arranque solo al encender el equipo.
+2. Copiar la carpeta "asistente_movilidad" a C:\asistente_movilidad
+   (evitar rutas con tildes o dentro de OneDrive).
+3. Abrir el archivo ".env" con el Bloc de notas:
+   - POSTGRES_PASSWORD: escribir una clave (solo letras y números).
+     No cambiarla después de instalar.
+   - Si el Excel y los informes están en una carpeta sincronizada de
+     SharePoint/OneDrive, escribir sus rutas en CARPETA_EXCEL y
+     CARPETA_INFORMES. Si no, dejar los valores por defecto.
+   (Si no se ve el archivo .env: Explorador > Ver > Mostrar > Elementos ocultos)
+4. Poner el Excel en la carpeta del Excel y los PDF en la de informes.
+5. Abrir PowerShell en C:\asistente_movilidad y ejecutar:
+       docker compose up -d --build
+   La primera vez tarda entre 20 y 60 minutos: descarga las imágenes,
+   el modelo de embeddings (1 GB), el modelo de IA (5 GB) y carga los datos.
+6. Seguir el avance con:
+       docker compose logs -f app
+   Cuando aparezca "Asistente listo" y "Modelo de IA local listo", abrir
+   http://localhost:8000 (Ctrl + C cierra el registro, NO apaga el asistente).
+7. Copiar "Asistente de Movilidad.url" al escritorio del usuario.
+8. Verificación: hacer una pregunta de cifras y una sobre los informes.
+
+
+3. USO DIARIO (Oficina)
+----------------------------------------------------------------------
+1. Encender el equipo e iniciar sesión.
+2. Esperar 1 o 2 minutos a que Docker Desktop arranque (ícono de la ballena).
+3. Abrir el acceso directo "Asistente de Movilidad" del escritorio.
+
+No hay que ejecutar nada más ni dejar ventanas abiertas. La primera pregunta
+después de encender puede tardar hasta un minuto; las siguientes son más rápidas.
+Si el equipo se apaga, al volver a encenderlo todo arranca de nuevo solo.
+
+
+4. ACTUALIZAR LA INFORMACIÓN (Oficina)
+----------------------------------------------------------------------
+- Excel: copiar o reemplazar el Excel en la carpeta del Excel. Puede tener
+  cualquier nombre; se usa el más reciente. Se recomienda dejar solo uno.
+- Informes: agregar, reemplazar o quitar los PDF de la carpeta de informes.
+  Formato del nombre: EMBAJADOR 2025-1 SALIENTE NOMBRE APELLIDO.pdf
+
+El asistente revisa las carpetas cada 10 minutos y aplica SOLO los cambios
+(no hay que reiniciar nada). El resultado queda en:
+    datos\salida\registro_actualizaciones.log
+
+Controles automáticos antes de tocar la base:
+  - El archivo debe abrir y ser un Excel .xlsx real (no dañado ni vacío).
+  - Debe tener la hoja y las 15 columnas del formato original.
+  - PERIODO con formato AAAA-1 o AAAA-2, fechas válidas y sin datos
+    obligatorios vacíos.
+  - Si el Excel nuevo quitaría más del 20 % de los registros, se detiene
+    (posible archivo equivocado o incompleto).
+  - Antes de cada actualización se guarda una copia de seguridad.
+  - Si la carpeta de informes aparece vacía (por ejemplo OneDrive sin
+    sincronizar), no se borra ningún informe.
+
+Si un archivo se rechaza, la página muestra un aviso amarillo con el motivo
+y el asistente sigue funcionando con los datos anteriores. Basta con corregir
+el Excel y volver a guardarlo en la carpeta.
+
+Para revisar un Excel sin cargarlo:
+    docker compose exec app python validar_excel.py "/datos/excel/NOMBRE.xlsx"
+
+IMPORTANTE con OneDrive: en la carpeta sincronizada, clic derecho >
+"Mantener siempre en este dispositivo", para que los archivos estén
+descargados en el equipo y Docker pueda leerlos.
+
+
+5. COPIAS DE SEGURIDAD Y RESTAURACIÓN (Sistemas)
+----------------------------------------------------------------------
+- Automáticas: antes de cada actualización del Excel y antes de una recarga.
+  Se conservan las 15 más recientes en datos\respaldos (MAX_RESPALDOS en .env).
+- Crear una copia ahora:
+      docker compose exec app python respaldo.py
+- Ver las copias:
+      docker compose exec app python respaldo.py listar
+- Restaurar una copia (se hace antes una copia del estado actual):
+      docker compose exec app python respaldo.py restaurar NOMBRE.dump
+      docker compose restart app
+  OJO: si el Excel de la carpeta causó el problema, corregirlo o quitarlo
+  antes, porque en la siguiente revisión se vuelve a aplicar.
+- Recomendación: copiar periódicamente datos\respaldos a otra ubicación
+  (por ejemplo, a SharePoint).
+
+
+6. COMANDOS DE MANTENIMIENTO (Sistemas, en PowerShell dentro de la carpeta)
+----------------------------------------------------------------------
+  Ver si está funcionando ........ docker compose ps
+  Ver mensajes de la aplicación .. docker compose logs --tail 100 app
+  Reiniciar el asistente ......... docker compose restart app
+  Apagar todo .................... docker compose stop
+  Encender todo .................. docker compose up -d
+  Aplicar cambios del .env ....... docker compose up -d
+  Instalar una nueva versión ..... reemplazar los archivos del programa (NO
+                                   la carpeta datos ni el .env) y ejecutar
+                                   docker compose up -d --build
+  Aplicar un Excel que quita más del 20 % (cuando la reducción es correcta):
+      docker compose exec app python iniciar.py --forzar --sin-abrir
+  Borrar y volver a cargar todo desde cero (Excel e informes):
+      docker compose exec app python iniciar.py --recargar --sin-abrir
+
+  NUNCA ejecutar "docker compose down -v": borra la base de datos y el
+  modelo de IA descargado.
+
+
+7. MODELO DE INTELIGENCIA ARTIFICIAL: PRINCIPAL Y RESPALDO
+----------------------------------------------------------------------
+Hay dos opciones y se pueden usar las dos a la vez:
+  - Ollama (local): no necesita clave ni internet; sin tarjeta gráfica es
+    lento (1 a 3 minutos por pregunta) y algo menos preciso.
+  - Servicio externo (Groq o la API de la universidad): responde en segundos
+    y es más preciso; necesita internet y una clave (API key).
+Al modelo nunca se le envían nombres ni números de documento.
+
+Configuración recomendada en .env: el servicio externo como PRINCIPAL y
+Ollama como RESPALDO. Si el principal falla (sin internet, límite diario,
+clave vencida o servicio caído), el asistente responde automáticamente con
+Ollama durante 5 minutos y luego vuelve a intentar con el principal. La
+página indica cuando una respuesta la dio el modelo de respaldo.
+
+    LLM_BASE_URL=https://api.groq.com/openai/v1
+    LLM_MODELO=openai/gpt-oss-120b
+    LLM_API_KEY=(la clave)
+    LLM_RESPALDO_BASE_URL=http://ollama:11434/v1
+    LLM_RESPALDO_MODELO=llama3.1:8b
+
+Después de cambiar el .env:  docker compose up -d
+No hay que cambiar el código.
+
+
+8. SOLUCIÓN DE PROBLEMAS
+----------------------------------------------------------------------
+- La página no abre: verificar que Docker Desktop esté abierto (ballena) y
+  esperar 2 minutos. Luego "docker compose ps": los tres deben decir "Up"
+  o "running". Si no, "docker compose up -d".
+- La página abre pero no responde las preguntas: revisar
+  "docker compose logs --tail 50 app". Si dice que Ollama no responde,
+  "docker compose restart ollama".
+- Aviso amarillo en la página: leer el motivo, corregir el Excel o la
+  carpeta de informes. Detalle en datos\salida\registro_actualizaciones.log
+  y datos\salida\ultimo_error.txt.
+- "La clave de la base no coincide": se cambió POSTGRES_PASSWORD después de
+  instalar; volver a poner la clave anterior.
+- Respuestas muy lentas: es normal sin tarjeta gráfica con el modelo local.
+  Opciones: activar la GPU (punto 9) o usar un servicio externo como
+  principal (punto 7). Si la página dice "Respondido con el modelo de
+  respaldo", revisar el internet y la clave del servicio externo.
+- Puerto ocupado: cambiar PUERTO_ASISTENTE o POSTGRES_PORT en .env y
+  ejecutar "docker compose up -d" (y actualizar el acceso directo).
+
+
+9. TARJETA GRÁFICA NVIDIA (opcional)
+----------------------------------------------------------------------
+Con controladores NVIDIA actualizados y Docker Desktop con WSL 2, quitar los #
+del bloque "deploy" del servicio ollama en compose.yml y ejecutar
+"docker compose up -d".
+
+
+10. POWER BI
+----------------------------------------------------------------------
+Después de cada actualización del Excel, el asistente genera el archivo
+    datos\powerbi\movilidad_powerbi.xlsx
+con los datos ya limpios: una fila por movilidad, con el nombre de la persona
+pero SIN número ni tipo de documento. Como tiene nombres, la carpeta solo debe
+ser accesible para la Oficina Dialogando con el Mundo.
+Hoja "movilidad": los datos. Hoja "info": fecha de actualización y registros.
+
+Conectar el informe de Power BI (una sola vez):
+  - Informe nuevo: Obtener datos > Excel > movilidad_powerbi.xlsx > hoja "movilidad".
+  - Informe existente que leía el Excel original: Transformar datos >
+    Configuración de origen de datos > Cambiar origen, y elegir este archivo.
+    Si los nombres de las columnas cambiaron, ajustar los pasos de la consulta.
+  - Para que el informe publicado se actualice solo, poner el archivo en una
+    carpeta sincronizada de SharePoint (CARPETA_POWERBI en .env) y conectarlo
+    con Obtener datos > Carpeta de SharePoint.
+Si el archivo está abierto en Excel cuando el asistente lo va a reemplazar,
+no se actualiza (queda anotado en el registro) y se reintenta en la siguiente
+revisión, a los 10 minutos. Para generarlo a mano:
+    docker compose exec app python exportar_powerbi.py
+
+
+11. PRIVACIDAD
+----------------------------------------------------------------------
+- La base, los informes y (con el modelo local) la IA quedan en este equipo.
+- Al modelo de IA nunca se le envían nombres ni números de documento.
+- La página, la base y el modelo solo son accesibles desde este equipo.
+- No compartir el archivo .env (tiene las claves) ni las carpetas de datos.
+
+
+12. LIMITACIONES Y PASOS FUTUROS
+----------------------------------------------------------------------
+- El equipo de escritorio no está diseñado para funcionar 24/7: el asistente
+  solo está disponible mientras el equipo esté encendido y con sesión iniciada.
+- Paso futuro recomendado: desplegar los mismos contenedores en un servidor o
+  máquina virtual de la universidad (la configuración de Docker es la misma),
+  agregando inicio de sesión institucional y HTTPS para acceso desde la red.
+
+
+RESPONSABLES
+----------------------------------------------------------------------
+  Oficina Dialogando con el Mundo: mantener el Excel y los informes en sus
+  carpetas, revisar los avisos de la página.
+  Oficina de Sistemas: instalación, actualizaciones del programa, copias de
+  seguridad externas, restauraciones y solución de problemas técnicos.

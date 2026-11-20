@@ -1,0 +1,1 @@
+Aqui quedan las copias de seguridad automaticas de la base (.dump).
